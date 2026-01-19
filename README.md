@@ -16,7 +16,8 @@ brew install moovent/tap/moovent-stack
 
 ## Run
 
-Set your internal access endpoint (required):
+If access is not configured, `moovent-stack` will open a setup page automatically.
+You can also set it manually:
 
 ```bash
 export MOOVENT_ACCESS_URL="https://YOUR-INTERNAL-ACCESS-ENDPOINT"
@@ -68,6 +69,8 @@ MOOVENT_ACCESS_TOKEN=...
 MOOVENT_ACCESS_TTL_S=86400
 MOOVENT_ACCESS_CACHE_PATH=~/.moovent_stack_access.json
 MOOVENT_ACCESS_SELF_CLEAN=1
+# If set, disable setup page and fail fast when missing config:
+MOOVENT_SETUP_NONINTERACTIVE=1
 ```
 
 ## Development

@@ -20,8 +20,10 @@ import socket
 import sys
 import time
 import webbrowser
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Optional
+from urllib.parse import parse_qs
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -41,10 +43,13 @@ REMOTE_ENV_URL = "MOOVENT_REMOTE_URL"
 REMOTE_ENV_BACKEND_URL = "MOOVENT_REMOTE_BACKEND_URL"
 REMOTE_ENV_OPEN_BROWSER = "MOOVENT_REMOTE_OPEN_BROWSER"
 
+SETUP_ENV_NONINTERACTIVE = "MOOVENT_SETUP_NONINTERACTIVE"
+
 DEFAULT_ACCESS_TTL_S = 24 * 60 * 60
 ACCESS_REQUEST_TIMEOUT_S = 5.0
 
 DEFAULT_CACHE_PATH = Path.home() / ".moovent_stack_access.json"
+CONFIG_PATH = Path.home() / ".moovent_stack_config.json"
 
 
 def _env_bool(value: Optional[str]) -> bool:
@@ -76,8 +81,173 @@ def _load_json(path: Path) -> dict:
 def _save_json(path: Path, data: dict) -> None:
     try:
         path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        # Best-effort: make file user-readable only (important for tokens).
+        try:
+            os.chmod(path, 0o600)
+        except Exception:
+            pass
     except Exception:
         return
+
+
+def _load_config() -> dict:
+    """Load setup config (access URL/token) from disk."""
+    return _load_json(CONFIG_PATH)
+
+
+def _save_config(data: dict) -> None:
+    """Persist setup config to disk."""
+    _save_json(CONFIG_PATH, data)
+
+
+def _resolve_access_settings() -> tuple[Optional[str], Optional[str]]:
+    """
+    Resolve access settings.
+
+    Priority:
+    - environment variables
+    - saved config file (~/.moovent_stack_config.json)
+    """
+    env_url = os.environ.get(ACCESS_ENV_URL, "").strip()
+    env_token = os.environ.get(ACCESS_ENV_TOKEN, "").strip()
+    if env_url:
+        return env_url, (env_token or None)
+
+    cfg = _load_config()
+    url = str(cfg.get("access_url") or "").strip()
+    token = str(cfg.get("access_token") or "").strip()
+    return (url or None), (token or None)
+
+
+def _setup_noninteractive() -> bool:
+    """When true, do not open the setup page; fail fast instead."""
+    return _env_bool(os.environ.get(SETUP_ENV_NONINTERACTIVE))
+
+
+def _run_setup_server() -> tuple[str, Optional[str]]:
+    """
+    Launch a local setup page to collect access URL/token.
+
+    Returns (access_url, access_token|None).
+    """
+
+    class _SetupState:
+        access_url: Optional[str] = None
+        access_token: Optional[str] = None
+        done: bool = False
+
+    state = _SetupState()
+
+    html = """
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Moovent Stack Setup</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-slate-50 text-slate-800">
+    <div class="min-h-screen flex items-center justify-center p-6">
+      <div class="w-full max-w-lg bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
+        <h1 class="text-xl font-semibold">Moovent Stack Setup</h1>
+        <p class="mt-2 text-sm text-slate-600">
+          To use Moovent Stack, we need to verify access. Paste your internal access endpoint below.
+        </p>
+        <form class="mt-5 space-y-4" method="POST" action="/save">
+          <div>
+            <label class="block text-sm font-medium text-slate-700">Access URL</label>
+            <input name="access_url" required placeholder="https://internal.example.com/access"
+              class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            <p class="mt-1 text-xs text-slate-500">Required. This URL is used to validate your access.</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700">Access Token (optional)</label>
+            <input name="access_token" placeholder="Bearer token (optional)"
+              class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            <p class="mt-1 text-xs text-slate-500">Only needed if your access service requires authentication.</p>
+          </div>
+          <div class="pt-2 flex gap-3">
+            <button type="submit"
+              class="flex-1 rounded-lg bg-indigo-600 text-white py-2.5 text-sm font-medium hover:bg-indigo-700">
+              Save & Continue
+            </button>
+          </div>
+          <p class="text-xs text-slate-500">
+            Saved locally to <code class="bg-slate-100 px-1.5 py-0.5 rounded">~/.moovent_stack_config.json</code>
+          </p>
+        </form>
+      </div>
+    </div>
+  </body>
+</html>
+""".strip()
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *_args) -> None:
+            return
+
+        def _send(self, code: int, body: str, content_type: str = "text/html") -> None:
+            raw = body.encode("utf-8")
+            self.send_response(code)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+
+        def do_GET(self) -> None:
+            if self.path == "/" or self.path.startswith("/?"):
+                self._send(200, html)
+                return
+            self._send(404, "Not found", "text/plain")
+
+        def do_POST(self) -> None:
+            if self.path != "/save":
+                self._send(404, "Not found", "text/plain")
+                return
+
+            length = int(self.headers.get("Content-Length") or "0")
+            raw = self.rfile.read(length).decode("utf-8", errors="replace")
+            form = parse_qs(raw)
+            access_url = (form.get("access_url", [""])[0] or "").strip()
+            access_token = (form.get("access_token", [""])[0] or "").strip()
+            if not access_url:
+                self._send(400, "Access URL is required", "text/plain")
+                return
+
+            state.access_url = access_url
+            state.access_token = access_token or None
+            state.done = True
+
+            _save_config({"access_url": state.access_url, "access_token": state.access_token or ""})
+
+            self._send(
+                200,
+                "<html><body style='font-family: system-ui; padding: 24px'>"
+                "<h2>Saved.</h2>"
+                "<p>You can close this tab. Returning to the app…</p>"
+                "<script>setTimeout(() => window.close(), 500);</script>"
+                "</body></html>",
+            )
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    host, port = server.server_address
+    setup_url = f"http://{host}:{port}/"
+
+    print("[setup] Access is not configured. Opening setup page…")
+    print(f"[setup] {setup_url}")
+    _open_browser(setup_url)
+
+    while not state.done:
+        server.handle_request()
+
+    try:
+        server.server_close()
+    except Exception:
+        pass
+
+    assert state.access_url is not None
+    return state.access_url, state.access_token
 
 
 def _ttl_seconds() -> float:
@@ -185,11 +355,11 @@ def _self_clean(install_root: Path, cache_path: Path) -> None:
 
 
 def ensure_access_or_exit() -> None:
-    url = os.environ.get(ACCESS_ENV_URL, "").strip()
+    url, token = _resolve_access_settings()
     if not url:
-        raise SystemExit(f"[access] {ACCESS_ENV_URL} is required.")
-
-    token = os.environ.get(ACCESS_ENV_TOKEN, "").strip() or None
+        if _setup_noninteractive():
+            raise SystemExit(f"[access] {ACCESS_ENV_URL} is required.")
+        url, token = _run_setup_server()
     ttl_s = _ttl_seconds()
     cache_path = _cache_path()
     cache = _load_json(cache_path)

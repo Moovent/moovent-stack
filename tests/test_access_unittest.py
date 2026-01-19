@@ -44,6 +44,21 @@ class TestAccessGuard(unittest.TestCase):
         self.assertTrue(m._remote_url().startswith("https://"))
         self.assertTrue(m._remote_backend_url().startswith("https://"))
 
+    def test_resolve_access_settings_prefers_env(self):
+        m = self._mod()
+        os.environ[m.ACCESS_ENV_URL] = "https://env.example/access"
+        os.environ[m.ACCESS_ENV_TOKEN] = "tok"
+        url, token = m._resolve_access_settings()
+        self.assertEqual(url, "https://env.example/access")
+        self.assertEqual(token, "tok")
+
+    def test_setup_noninteractive_flag(self):
+        m = self._mod()
+        os.environ.pop(m.SETUP_ENV_NONINTERACTIVE, None)
+        self.assertFalse(m._setup_noninteractive())
+        os.environ[m.SETUP_ENV_NONINTERACTIVE] = "1"
+        self.assertTrue(m._setup_noninteractive())
+
 
 if __name__ == "__main__":
     unittest.main()
