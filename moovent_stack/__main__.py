@@ -17,6 +17,7 @@ import platform
 import secrets
 import shutil
 import socket
+import subprocess
 import sys
 import time
 import webbrowser
@@ -37,11 +38,8 @@ ACCESS_ENV_TTL = "MOOVENT_ACCESS_TTL_S"
 ACCESS_ENV_SELF_CLEAN = "MOOVENT_ACCESS_SELF_CLEAN"
 ACCESS_ENV_INSTALL_ROOT = "MOOVENT_INSTALL_ROOT"
 ACCESS_ENV_CACHE_PATH = "MOOVENT_ACCESS_CACHE_PATH"
-
-REMOTE_ENV_ENABLED = "MOOVENT_REMOTE_MODE"
-REMOTE_ENV_URL = "MOOVENT_REMOTE_URL"
-REMOTE_ENV_BACKEND_URL = "MOOVENT_REMOTE_BACKEND_URL"
-REMOTE_ENV_OPEN_BROWSER = "MOOVENT_REMOTE_OPEN_BROWSER"
+WORKSPACE_ENV_ROOT = "MOOVENT_WORKSPACE_ROOT"
+RUNNER_ENV_PATH = "MOOVENT_RUNNER_PATH"
 
 SETUP_ENV_NONINTERACTIVE = "MOOVENT_SETUP_NONINTERACTIVE"
 
@@ -97,7 +95,9 @@ def _load_config() -> dict:
 
 def _save_config(data: dict) -> None:
     """Persist setup config to disk."""
-    _save_json(CONFIG_PATH, data)
+    current = _load_config()
+    current.update(data)
+    _save_json(CONFIG_PATH, current)
 
 
 def _resolve_access_settings() -> tuple[Optional[str], Optional[str]]:
@@ -124,7 +124,40 @@ def _setup_noninteractive() -> bool:
     return _env_bool(os.environ.get(SETUP_ENV_NONINTERACTIVE))
 
 
-def _run_setup_server() -> tuple[str, Optional[str]]:
+def _resolve_runner_path() -> Optional[Path]:
+    """Resolve the path to run_local_stack.py."""
+    raw_runner = os.environ.get(RUNNER_ENV_PATH, "").strip()
+    if raw_runner:
+        return Path(raw_runner).expanduser()
+
+    raw_root = os.environ.get(WORKSPACE_ENV_ROOT, "").strip()
+    if raw_root:
+        return (Path(raw_root).expanduser() / "run_local_stack.py")
+
+    cfg = _load_config()
+    root = str(cfg.get("workspace_root") or "").strip()
+    if root:
+        return (Path(root).expanduser() / "run_local_stack.py")
+
+    return None
+
+
+def _validate_runner_path(path: Path) -> tuple[bool, str]:
+    """Validate workspace layout for local stack."""
+    if not path.exists():
+        return False, f"run_local_stack.py not found at: {path}"
+    root = path.parent
+    missing = []
+    if not (root / "mqtt_dashboard_watch").exists():
+        missing.append("mqtt_dashboard_watch/")
+    if not (root / "dashboard").exists():
+        missing.append("dashboard/")
+    if missing:
+        return False, f"Workspace missing: {', '.join(missing)} (expected under {root})"
+    return True, ""
+
+
+def _run_setup_server() -> tuple[str, Optional[str], Path]:
     """
     Launch a local setup page to collect access URL/token.
 
@@ -138,7 +171,15 @@ def _run_setup_server() -> tuple[str, Optional[str]]:
 
     state = _SetupState()
 
-    html = """
+    def _render_html(error_text: str = "") -> str:
+        error_block = ""
+        if error_text:
+            error_block = f"""
+            <div class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {error_text}
+            </div>
+            """
+        return f"""
 <!doctype html>
 <html lang="en">
   <head>
@@ -201,6 +242,7 @@ def _run_setup_server() -> tuple[str, Optional[str]]:
 
           <!-- Form -->
           <form class="p-5 space-y-4" method="POST" action="/save">
+            {error_block}
             <div>
               <label class="block mb-2 text-sm text-gray-800 dark:text-neutral-200">
                 Access URL <span class="text-red-500">*</span>
@@ -229,6 +271,22 @@ def _run_setup_server() -> tuple[str, Optional[str]]:
               />
               <p class="mt-2 text-xs text-gray-500 dark:text-neutral-400">
                 We store this locally in a config file with restricted permissions.
+              </p>
+            </div>
+
+            <div>
+              <label class="block mb-2 text-sm text-gray-800 dark:text-neutral-200">
+                Workspace Folder <span class="text-red-500">*</span>
+              </label>
+              <input
+                name="workspace_root"
+                required
+                placeholder="/Users/you/Projects/moovent"
+                class="py-3 px-4 block w-full border-gray-200 rounded-lg text-sm placeholder:text-gray-400 focus:border-indigo-500 focus:ring-indigo-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-transparent dark:border-neutral-700 dark:text-neutral-200 dark:placeholder:text-white/60 dark:focus:ring-neutral-600"
+              />
+              <p class="mt-2 text-xs text-gray-500 dark:text-neutral-400">
+                This folder must contain <code>run_local_stack.py</code> and the repos
+                <code>mqtt_dashboard_watch/</code> and <code>dashboard/</code>.
               </p>
             </div>
 
@@ -275,7 +333,7 @@ def _run_setup_server() -> tuple[str, Optional[str]]:
 
         def do_GET(self) -> None:
             if self.path == "/" or self.path.startswith("/?"):
-                self._send(200, html)
+                self._send(200, _render_html())
                 return
             self._send(404, "Not found", "text/plain")
 
@@ -289,15 +347,32 @@ def _run_setup_server() -> tuple[str, Optional[str]]:
             form = parse_qs(raw)
             access_url = (form.get("access_url", [""])[0] or "").strip()
             access_token = (form.get("access_token", [""])[0] or "").strip()
+            workspace_root = (form.get("workspace_root", [""])[0] or "").strip()
+
             if not access_url:
-                self._send(400, "Access URL is required", "text/plain")
+                self._send(200, _render_html("Access URL is required."))
+                return
+            if not workspace_root:
+                self._send(200, _render_html("Workspace folder is required."))
+                return
+
+            runner_path = Path(workspace_root).expanduser() / "run_local_stack.py"
+            ok, error = _validate_runner_path(runner_path)
+            if not ok:
+                self._send(200, _render_html(error))
                 return
 
             state.access_url = access_url
             state.access_token = access_token or None
             state.done = True
 
-            _save_config({"access_url": state.access_url, "access_token": state.access_token or ""})
+            _save_config(
+                {
+                    "access_url": state.access_url,
+                    "access_token": state.access_token or "",
+                    "workspace_root": str(Path(workspace_root).expanduser()),
+                }
+            )
 
             self._send(
                 200,
@@ -350,7 +425,9 @@ def _run_setup_server() -> tuple[str, Optional[str]]:
         pass
 
     assert state.access_url is not None
-    return state.access_url, state.access_token
+    runner_path = _resolve_runner_path()
+    assert runner_path is not None
+    return state.access_url, state.access_token, runner_path
 
 
 def _ttl_seconds() -> float:
@@ -457,12 +534,7 @@ def _self_clean(install_root: Path, cache_path: Path) -> None:
             continue
 
 
-def ensure_access_or_exit() -> None:
-    url, token = _resolve_access_settings()
-    if not url:
-        if _setup_noninteractive():
-            raise SystemExit(f"[access] {ACCESS_ENV_URL} is required.")
-        url, token = _run_setup_server()
+def ensure_access_or_exit(url: str, token: Optional[str]) -> None:
     ttl_s = _ttl_seconds()
     cache_path = _cache_path()
     cache = _load_json(cache_path)
@@ -493,21 +565,7 @@ def ensure_access_or_exit() -> None:
             _self_clean(Path(root_raw), cache_path)
         else:
             print("[access] Cleanup skipped: install root not provided.", file=sys.stderr)
-    raise SystemExit(3)
-
-
-def _remote_mode_enabled() -> bool:
-    return _env_bool_default(os.environ.get(REMOTE_ENV_ENABLED), True)
-
-
-def _remote_url() -> str:
-    url = os.environ.get(REMOTE_ENV_URL, "").strip()
-    return url or "https://moovent-frontend.onrender.com"
-
-
-def _remote_backend_url() -> str:
-    url = os.environ.get(REMOTE_ENV_BACKEND_URL, "").strip()
-    return url or "https://moovent-backend.onrender.com"
+        raise SystemExit(3)
 
 
 def _open_browser(url: str) -> None:
@@ -517,22 +575,29 @@ def _open_browser(url: str) -> None:
         print("[runner] Unable to open browser automatically.", file=sys.stderr)
 
 
+def _run_local_stack(runner_path: Path) -> int:
+    """Run the local stack via run_local_stack.py."""
+    print("[runner] Starting local stack...")
+    return subprocess.call([sys.executable, str(runner_path)])
+
+
 def main() -> int:
-    ensure_access_or_exit()
+    access_url, access_token = _resolve_access_settings()
+    runner_path = _resolve_runner_path()
 
-    if _remote_mode_enabled():
-        url = _remote_url()
-        api = _remote_backend_url()
-        print("[runner] Remote mode: opening hosted stack (no local secrets).")
-        print(f"[runner] Open: {url}")
-        print(f"[runner] API:  {api}")
-        if _env_bool_default(os.environ.get(REMOTE_ENV_OPEN_BROWSER), True):
-            _open_browser(url)
-        return 0
+    if not access_url or not runner_path:
+        if _setup_noninteractive():
+            print("[runner] Missing setup. Provide access URL and workspace path.", file=sys.stderr)
+            return 2
+        access_url, access_token, runner_path = _run_setup_server()
 
-    print("[runner] Local mode is not implemented in this repo.", file=sys.stderr)
-    print("[runner] Set MOOVENT_REMOTE_MODE=1 (default) to use Render.", file=sys.stderr)
-    return 2
+    ok, error = _validate_runner_path(runner_path)
+    if not ok:
+        print(f"[runner] {error}", file=sys.stderr)
+        return 2
+
+    ensure_access_or_exit(access_url, access_token)
+    return _run_local_stack(runner_path)
 
 
 if __name__ == "__main__":

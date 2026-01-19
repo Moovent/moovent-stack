@@ -1,4 +1,5 @@
 import os
+import tempfile
 import time
 import unittest
 from pathlib import Path
@@ -36,13 +37,24 @@ class TestAccessGuard(unittest.TestCase):
         self.assertFalse(m._safe_install_root(Path.home()))
         self.assertTrue(m._safe_install_root(Path("/opt/homebrew/Cellar/moovent-stack/0.1.0/libexec")))
 
-    def test_remote_defaults(self):
+    def test_resolve_runner_path_env(self):
         m = self._mod()
-        # Ensure defaults kick in when env vars not set.
-        os.environ.pop(m.REMOTE_ENV_URL, None)
-        os.environ.pop(m.REMOTE_ENV_BACKEND_URL, None)
-        self.assertTrue(m._remote_url().startswith("https://"))
-        self.assertTrue(m._remote_backend_url().startswith("https://"))
+        os.environ[m.RUNNER_ENV_PATH] = "/tmp/run_local_stack.py"
+        path = m._resolve_runner_path()
+        self.assertEqual(path, Path("/tmp/run_local_stack.py"))
+        os.environ.pop(m.RUNNER_ENV_PATH, None)
+
+    def test_validate_runner_path(self):
+        m = self._mod()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            runner = root / "run_local_stack.py"
+            runner.write_text("# test")
+            (root / "mqtt_dashboard_watch").mkdir()
+            (root / "dashboard").mkdir()
+            ok, error = m._validate_runner_path(runner)
+            self.assertTrue(ok)
+            self.assertEqual(error, "")
 
     def test_resolve_access_settings_prefers_env(self):
         m = self._mod()

@@ -5,7 +5,7 @@ This repository contains the **Moovent developer stack launcher**.
 Goal: the easiest possible onboarding for non-technical users:
 - Install with **one command** via Homebrew
 - Run with **one command** (`moovent-stack`)
-- No local `.env` files required (remote-only mode)
+- Uses local `.env` files (local-only mode)
 - Access can be revoked centrally (runtime access checks)
 
 ## Install (Homebrew)
@@ -16,32 +16,24 @@ brew install moovent/tap/moovent-stack
 
 ## Run
 
-If access is not configured, `moovent-stack` will open a setup page automatically.
+If access or workspace is not configured, `moovent-stack` opens a setup page automatically.
 You can also set it manually:
 
 ```bash
 export MOOVENT_ACCESS_URL="https://YOUR-INTERNAL-ACCESS-ENDPOINT"
 export MOOVENT_ACCESS_TOKEN="YOUR_TOKEN"   # optional, if your access API requires it
+export MOOVENT_WORKSPACE_ROOT="/Users/you/Projects/moovent"  # contains run_local_stack.py
 moovent-stack
 ```
 
-## Remote-only mode (recommended)
+## Local-only mode (default)
 
-Remote-only mode opens the hosted stack (Render) and does **not** start any local services.
-This keeps secrets server-side and prevents engineers from needing `.env` files locally.
+The CLI launches the local stack by running `run_local_stack.py` from your workspace.
 
-```bash
-export MOOVENT_REMOTE_MODE=1
-export MOOVENT_REMOTE_URL="https://moovent-frontend.onrender.com"
-export MOOVENT_REMOTE_BACKEND_URL="https://moovent-backend.onrender.com"
-moovent-stack
-```
-
-Optional:
-
-```bash
-export MOOVENT_REMOTE_OPEN_BROWSER=0
-```
+Workspace requirements:
+- `run_local_stack.py` at the workspace root
+- `mqtt_dashboard_watch/` repo folder
+- `dashboard/` repo folder
 
 ## Access control & revocation
 
@@ -71,6 +63,10 @@ MOOVENT_ACCESS_CACHE_PATH=~/.moovent_stack_access.json
 MOOVENT_ACCESS_SELF_CLEAN=1
 # If set, disable setup page and fail fast when missing config:
 MOOVENT_SETUP_NONINTERACTIVE=1
+# Optional: override runner path directly
+MOOVENT_RUNNER_PATH=/full/path/to/run_local_stack.py
+# Optional: provide workspace root instead
+MOOVENT_WORKSPACE_ROOT=/Users/you/Projects/moovent
 ```
 
 ## Development
