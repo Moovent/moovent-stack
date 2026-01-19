@@ -147,38 +147,116 @@ def _run_setup_server() -> tuple[str, Optional[str]]:
     <title>Moovent Stack Setup</title>
     <script src="https://cdn.tailwindcss.com"></script>
   </head>
-  <body class="bg-slate-50 text-slate-800">
-    <div class="min-h-screen flex items-center justify-center p-6">
-      <div class="w-full max-w-lg bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
-        <h1 class="text-xl font-semibold">Moovent Stack Setup</h1>
-        <p class="mt-2 text-sm text-slate-600">
-          To use Moovent Stack, we need to verify access. Paste your internal access endpoint below.
-        </p>
-        <form class="mt-5 space-y-4" method="POST" action="/save">
-          <div>
-            <label class="block text-sm font-medium text-slate-700">Access URL</label>
-            <input name="access_url" required placeholder="https://internal.example.com/access"
-              class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            <p class="mt-1 text-xs text-slate-500">Required. This URL is used to validate your access.</p>
+  <body class="bg-gray-50 text-gray-800 dark:bg-neutral-900 dark:text-neutral-200">
+    <main class="min-h-screen flex items-center justify-center px-4 py-10">
+      <div class="w-full max-w-xl">
+        <!-- Header (auth-style) -->
+        <div class="mb-6 text-center">
+          <div class="mx-auto size-14 flex items-center justify-center rounded-2xl bg-white border border-gray-200 shadow-2xs dark:bg-neutral-800 dark:border-neutral-700">
+            <svg class="size-7 text-indigo-600 dark:text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2a10 10 0 1 0 10 10" />
+              <path d="M12 6v6l4 2" />
+            </svg>
           </div>
-          <div>
-            <label class="block text-sm font-medium text-slate-700">Access Token (optional)</label>
-            <input name="access_token" placeholder="Bearer token (optional)"
-              class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            <p class="mt-1 text-xs text-slate-500">Only needed if your access service requires authentication.</p>
-          </div>
-          <div class="pt-2 flex gap-3">
-            <button type="submit"
-              class="flex-1 rounded-lg bg-indigo-600 text-white py-2.5 text-sm font-medium hover:bg-indigo-700">
-              Save & Continue
-            </button>
-          </div>
-          <p class="text-xs text-slate-500">
-            Saved locally to <code class="bg-slate-100 px-1.5 py-0.5 rounded">~/.moovent_stack_config.json</code>
+          <h1 class="mt-4 font-semibold text-2xl text-gray-800 dark:text-neutral-200">
+            Let’s get you set up
+          </h1>
+          <p class="mt-2 text-sm text-gray-500 dark:text-neutral-400">
+            This takes less than a minute. We’ll save your settings locally so you won’t need to do this again.
           </p>
-        </form>
+        </div>
+
+        <!-- Card (setup-flow style) -->
+        <div class="relative overflow-hidden bg-white border border-gray-200 rounded-xl shadow-2xs dark:bg-neutral-900 dark:border-neutral-700">
+          <!-- Subtle gradient header (banners-style) -->
+          <div class="p-5 bg-linear-to-r from-indigo-50 via-purple-50 via-70% to-sky-50 dark:from-indigo-900/30 dark:via-purple-900/30 dark:to-sky-900/30">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 class="font-semibold text-gray-800 dark:text-neutral-200">
+                  Access verification
+                </h2>
+                <p class="mt-1 text-xs text-gray-600 dark:text-neutral-300">
+                  Needed to confirm you’re allowed to use Moovent Stack.
+                </p>
+              </div>
+              <span class="py-1 px-2 inline-flex items-center gap-x-1 text-xs font-semibold uppercase rounded-md bg-linear-to-tr from-indigo-600 to-teal-500 text-white">
+                Setup
+              </span>
+            </div>
+
+            <!-- Progress (setup-flow pattern) -->
+            <div class="mt-4">
+              <div class="flex items-center justify-between">
+                <span class="text-xs text-gray-600 dark:text-neutral-300">Step 1 of 1</span>
+                <span class="text-xs text-gray-600 dark:text-neutral-300">Access details</span>
+              </div>
+              <div class="mt-2 grid grid-cols-4 gap-x-1.5">
+                <div class="bg-teal-600 h-2 flex-auto rounded-sm"></div>
+                <div class="bg-teal-600 h-2 flex-auto rounded-sm"></div>
+                <div class="bg-teal-600 h-2 flex-auto rounded-sm"></div>
+                <div class="bg-teal-600 h-2 flex-auto rounded-sm"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Form -->
+          <form class="p-5 space-y-4" method="POST" action="/save">
+            <div>
+              <label class="block mb-2 text-sm text-gray-800 dark:text-neutral-200">
+                Access URL <span class="text-red-500">*</span>
+              </label>
+              <input
+                name="access_url"
+                required
+                type="url"
+                placeholder="https://internal.example.com/access"
+                class="py-3 px-4 block w-full border-gray-200 rounded-lg text-sm placeholder:text-gray-400 focus:border-indigo-500 focus:ring-indigo-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-transparent dark:border-neutral-700 dark:text-neutral-200 dark:placeholder:text-white/60 dark:focus:ring-neutral-600"
+              />
+              <p class="mt-2 text-xs text-gray-500 dark:text-neutral-400">
+                This endpoint tells us if your account is authorized.
+              </p>
+            </div>
+
+            <div>
+              <label class="block mb-2 text-sm text-gray-800 dark:text-neutral-200">
+                Access Token <span class="text-xs text-gray-400">(optional)</span>
+              </label>
+              <input
+                name="access_token"
+                type="password"
+                placeholder="Paste token if your access service requires it"
+                class="py-3 px-4 block w-full border-gray-200 rounded-lg text-sm placeholder:text-gray-400 focus:border-indigo-500 focus:ring-indigo-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-transparent dark:border-neutral-700 dark:text-neutral-200 dark:placeholder:text-white/60 dark:focus:ring-neutral-600"
+              />
+              <p class="mt-2 text-xs text-gray-500 dark:text-neutral-400">
+                We store this locally in a config file with restricted permissions.
+              </p>
+            </div>
+
+            <div class="pt-2 flex flex-col sm:flex-row gap-3">
+              <button
+                type="submit"
+                class="py-3 px-4 w-full inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:pointer-events-none focus:outline-hidden focus:bg-indigo-700"
+              >
+                Save & Continue
+                <svg class="shrink-0 size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              </button>
+            </div>
+
+            <div class="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-lg dark:bg-neutral-800 dark:border-neutral-700">
+              <p class="text-xs text-gray-600 dark:text-neutral-300">
+                Saved locally to:
+                <code class="ms-1 px-1.5 py-0.5 rounded bg-white border border-gray-200 text-gray-800 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-200">~/.moovent_stack_config.json</code>
+              </p>
+            </div>
+          </form>
+        </div>
+
+        <!-- Footer (auth-style) -->
+        <p class="mt-6 text-center text-xs text-gray-500 dark:text-neutral-400">
+          Moovent Stack is internal. If you don’t have an Access URL, ask your team lead.
+        </p>
       </div>
-    </div>
+    </main>
   </body>
 </html>
 """.strip()
@@ -223,11 +301,36 @@ def _run_setup_server() -> tuple[str, Optional[str]]:
 
             self._send(
                 200,
-                "<html><body style='font-family: system-ui; padding: 24px'>"
-                "<h2>Saved.</h2>"
-                "<p>You can close this tab. Returning to the app…</p>"
-                "<script>setTimeout(() => window.close(), 500);</script>"
-                "</body></html>",
+                """
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Saved • Moovent Stack</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-gray-50 text-gray-800 dark:bg-neutral-900 dark:text-neutral-200">
+    <main class="min-h-screen flex items-center justify-center px-4 py-10">
+      <div class="w-full max-w-md bg-white border border-gray-200 rounded-xl shadow-2xs p-6 dark:bg-neutral-900 dark:border-neutral-700">
+        <div class="mx-auto size-14 flex items-center justify-center rounded-full border-2 border-emerald-500 text-emerald-500">
+          <svg class="size-7" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        </div>
+        <h2 class="mt-4 text-center font-semibold text-lg text-gray-800 dark:text-neutral-200">Saved</h2>
+        <p class="mt-2 text-center text-sm text-gray-500 dark:text-neutral-400">
+          You can close this tab. Moovent Stack will continue automatically.
+        </p>
+        <div class="mt-5 flex justify-center">
+          <button type="button" onclick="window.close()" class="py-2.5 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-800 shadow-2xs hover:bg-gray-50 focus:outline-hidden focus:bg-gray-50 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800">
+            Close tab
+          </button>
+        </div>
+      </div>
+    </main>
+    <script>setTimeout(() => window.close(), 800);</script>
+  </body>
+</html>
+""",
             )
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
