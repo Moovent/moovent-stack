@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.10
+- Fix: show actionable GitHub access errors (SSO/scopes) instead of generic reconnect.
+- Fix: add GitHub User-Agent header to avoid 403s on branch fetch.
+
 ## 0.3.9
 - Debug: show detailed error message when GitHub OAuth exchange fails.
 

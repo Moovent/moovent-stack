@@ -781,22 +781,41 @@ def _run_setup_server() -> None:
                     )
                     return
                 token = _resolve_github_token() or ""
-                mqtt_branches = _github_list_branches("Moovent", "mqtt_dashboard_watch", token) if token else []
-                dash_branches = _github_list_branches("Moovent", "dashboard", token) if token else []
-                # If branches couldn't be loaded, token may be invalid/expired
-                if token and not mqtt_branches and not dash_branches:
+                if not token:
                     github_login = str(cfg.get("github_login") or "").strip() or None
-                    # Clear invalid token so user can reconnect
-                    _save_config({"github_access_token": "", "github_login": ""})
                     self._send(
                         200,
                         _setup_step2_html(
-                            None,
-                            error_text="GitHub token expired or invalid. Please reconnect.",
+                            github_login,
+                            error_text="Connect GitHub before selecting branches.",
                             workspace_root=str(cfg.get("workspace_root") or "").strip(),
                         ),
                     )
                     return
+
+                mqtt_branches, mqtt_error, mqtt_reconnect = _github_list_branches(
+                    "Moovent", "mqtt_dashboard_watch", token
+                )
+                dash_branches, dash_error, dash_reconnect = _github_list_branches("Moovent", "dashboard", token)
+                errors = [err for err in (mqtt_error, dash_error) if err]
+                if errors:
+                    # Use <br/> to preserve multiple error lines in the HTML block.
+                    error_text = "<br/>".join(errors)
+                    if mqtt_reconnect or dash_reconnect:
+                        _save_config({"github_access_token": "", "github_login": ""})
+                        github_login = None
+                    else:
+                        github_login = str(cfg.get("github_login") or "").strip() or None
+                    self._send(
+                        200,
+                        _setup_step2_html(
+                            github_login,
+                            error_text=error_text,
+                            workspace_root=str(cfg.get("workspace_root") or "").strip(),
+                        ),
+                    )
+                    return
+
                 self._send(200, _setup_step3_html(mqtt_branches, dash_branches))
                 return
 
@@ -912,17 +931,24 @@ def _run_setup_server() -> None:
                         ),
                     )
                     return
-                mqtt_branches = _github_list_branches("Moovent", "mqtt_dashboard_watch", token)
-                dash_branches = _github_list_branches("Moovent", "dashboard", token)
-                # If branches couldn't be loaded, token may be invalid/expired
-                if not mqtt_branches and not dash_branches:
-                    # Clear invalid token so user can reconnect
-                    _save_config({"github_access_token": "", "github_login": ""})
+                mqtt_branches, mqtt_error, mqtt_reconnect = _github_list_branches(
+                    "Moovent", "mqtt_dashboard_watch", token
+                )
+                dash_branches, dash_error, dash_reconnect = _github_list_branches("Moovent", "dashboard", token)
+                errors = [err for err in (mqtt_error, dash_error) if err]
+                if errors:
+                    # Use <br/> to preserve multiple error lines in the HTML block.
+                    error_text = "<br/>".join(errors)
+                    if mqtt_reconnect or dash_reconnect:
+                        _save_config({"github_access_token": "", "github_login": ""})
+                        github_login = None
+                    else:
+                        github_login = str(cfg.get("github_login") or "").strip() or None
                     self._send(
                         200,
                         _setup_step2_html(
-                            None,
-                            error_text="GitHub token expired or invalid. Please reconnect.",
+                            github_login,
+                            error_text=error_text,
                             workspace_root=str(cfg.get("workspace_root") or "").strip(),
                         ),
                     )
@@ -1262,11 +1288,88 @@ def _ensure_github_oauth_from_infisical() -> None:
         _save_config({"github_client_id": github_id, "github_client_secret": github_secret})
 
 
+def _github_user_agent() -> str:
+    """Return User-Agent string for GitHub API requests."""
+    return f"moovent-stack/{__version__}"
+
+
+def _split_scopes(value: str) -> set[str]:
+    """Split OAuth scope header values into a normalized set."""
+    return {scope.strip() for scope in value.split(",") if scope.strip()}
+
+
+def _read_github_error_message(err: HTTPError) -> str:
+    """Extract a useful error message from a GitHub HTTPError response."""
+    try:
+        raw = err.read().decode("utf-8", errors="replace").strip()
+    except Exception:
+        return ""
+    if not raw:
+        return ""
+    try:
+        data = json.loads(raw)
+        if isinstance(data, dict):
+            return str(data.get("message") or "").strip()
+    except Exception:
+        pass
+    return raw
+
+
+def _describe_github_http_error(err: HTTPError) -> tuple[str, bool]:
+    """
+    Return a user-facing error message and whether to reconnect.
+
+    - Reconnect when token is invalid/expired or missing required scopes.
+    - Keep token for org access/SSO errors so user can authorize it.
+    """
+    message = _read_github_error_message(err)
+    message_lower = message.lower()
+    token_scopes = str(err.headers.get("X-OAuth-Scopes") or "").strip()
+    accepted_scopes = str(err.headers.get("X-Accepted-OAuth-Scopes") or "").strip()
+
+    if err.code == 401:
+        return "GitHub token expired or invalid. Please reconnect.", True
+
+    if "sso" in message_lower:
+        return (
+            "GitHub SSO authorization required for Moovent. "
+            "Open https://github.com/orgs/Moovent/sso and authorize the OAuth app, then retry.",
+            False,
+        )
+
+    if token_scopes and accepted_scopes:
+        token_scope_set = _split_scopes(token_scopes)
+        accepted_scope_set = _split_scopes(accepted_scopes)
+        missing_scopes = sorted(accepted_scope_set - token_scope_set)
+        if missing_scopes:
+            return (
+                "GitHub token missing required scopes "
+                f"({', '.join(missing_scopes)}). Please reconnect and approve permissions.",
+                True,
+            )
+
+    if err.code == 403:
+        return (
+            "GitHub access forbidden. Check org access or authorize SSO, then retry.",
+            False,
+        )
+
+    if err.code == 404:
+        return (
+            "GitHub repo not found or access denied. Check your org membership.",
+            False,
+        )
+
+    fallback = message or err.reason or "Unknown GitHub API error"
+    return f"GitHub API error {err.code}: {fallback}", False
+
+
 def _github_api_request(url: str, token: str) -> dict:
     """Call GitHub API with token and return JSON dict."""
     req = Request(url, method="GET")
     req.add_header("Authorization", f"Bearer {token}")
     req.add_header("Accept", "application/vnd.github+json")
+    req.add_header("User-Agent", _github_user_agent())
     with urlopen(req, timeout=ACCESS_REQUEST_TIMEOUT_S) as resp:
         raw = resp.read().decode("utf-8").strip()
         data = json.loads(raw) if raw else {}
@@ -1305,26 +1408,35 @@ def _github_get_login(token: str) -> Optional[str]:
         return None
 
 
-def _github_list_branches(owner: str, repo: str, token: str) -> list[str]:
-    """List branch names for a repo. Returns empty list on error."""
+def _github_list_branches(owner: str, repo: str, token: str) -> tuple[list[str], str, bool]:
+    """
+    List branch names for a repo.
+
+    Returns:
+    - branches: list of branch names
+    - error_text: user-facing error string (empty if no error)
+    - should_reconnect: whether OAuth reconnect is required
+    """
     url = f"https://api.github.com/repos/{owner}/{repo}/branches?per_page=100"
     req = Request(url, method="GET")
     req.add_header("Authorization", f"Bearer {token}")
     req.add_header("Accept", "application/vnd.github+json")
+    req.add_header("User-Agent", _github_user_agent())
     try:
         with urlopen(req, timeout=ACCESS_REQUEST_TIMEOUT_S) as resp:
             raw = resp.read().decode("utf-8").strip()
             data = json.loads(raw) if raw else []
             if not isinstance(data, list):
-                return []
-            return [str(item.get("name") or "").strip() for item in data if isinstance(item, dict)]
+                return [], f"GitHub API returned unexpected response for {owner}/{repo}.", False
+            branches = [str(item.get("name") or "").strip() for item in data if isinstance(item, dict)]
+            return branches, "", False
     except HTTPError as err:
-        # 401/403 means token is invalid or expired
-        print(f"[setup] GitHub API error {err.code}: {err.reason}", file=sys.stderr)
-        return []
+        error_text, should_reconnect = _describe_github_http_error(err)
+        print(f"[setup] GitHub API error {err.code}: {error_text}", file=sys.stderr)
+        return [], f"{owner}/{repo}: {error_text}", should_reconnect
     except Exception as exc:
         print(f"[setup] GitHub API error: {exc}", file=sys.stderr)
-        return []
+        return [], f"{owner}/{repo}: GitHub API request failed. Please retry.", False
 
 
 def _safe_install_root(install_root: Path) -> bool:
