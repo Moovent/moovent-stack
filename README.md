@@ -22,7 +22,7 @@ You can also set it manually:
 ```bash
 export INFISICAL_CLIENT_ID="YOUR_CLIENT_ID"
 export INFISICAL_CLIENT_SECRET="YOUR_CLIENT_SECRET"
-export INFISICAL_HOST="https://app.infisical.com" # optional override
+export INFISICAL_HOST="https://eu.infisical.com" # optional override (default)
 export INFISICAL_PROJECT_ID="b33db90d-cc5b-464e-b58c-a09e7328e83d" # required (Moovent org project)
 export INFISICAL_ENVIRONMENT="dev" # default: dev
 export INFISICAL_SECRET_PATH="/" # default: /
@@ -57,7 +57,7 @@ INFISICAL_CLIENT_SECRET=...
 INFISICAL_PROJECT_ID=b33db90d-cc5b-464e-b58c-a09e7328e83d
 INFISICAL_ENVIRONMENT=dev
 INFISICAL_SECRET_PATH=/
-# Optional (default: https://app.infisical.com, EU: https://eu.infisical.com):
+# Optional (default: https://eu.infisical.com, US: https://app.infisical.com):
 INFISICAL_HOST=...
 # GitHub OAuth (required for repo/branch setup):
 MOOVENT_GITHUB_CLIENT_ID=...

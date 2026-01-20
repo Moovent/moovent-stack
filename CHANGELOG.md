@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.3
+- Fix: use optimized (resized to 400px) Moovent logo PNG for onboarding header to reduce embedded base64 size from ~286KB to ~40KB.
+- Change: default Infisical host to EU (`https://eu.infisical.com`); override with `INFISICAL_HOST` if needed.
+
 ## 0.3.2
 - Fix: avoid denying access due to stale pre-project-scope access cache files.
 
