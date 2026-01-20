@@ -57,6 +57,30 @@ CONFIG_PATH = Path.home() / ".moovent_stack_config.json"
 # Default to the EU Infisical tenant for Moovent.
 # Assumption: Moovent's org/project lives in EU; override via INFISICAL_HOST if needed.
 DEFAULT_INFISICAL_HOST = "https://eu.infisical.com"
+
+
+def _get_version() -> str:
+    """Return version string from VERSION file or fallback."""
+    # Try installed package location first
+    install_root = os.environ.get(ACCESS_ENV_INSTALL_ROOT, "")
+    if install_root:
+        version_file = Path(install_root) / "VERSION"
+        if version_file.exists():
+            return version_file.read_text().strip()
+    # Try relative to this file (dev mode)
+    here = Path(__file__).parent.parent / "VERSION"
+    if here.exists():
+        return here.read_text().strip()
+    return "dev"
+
+
+def _current_year() -> int:
+    """Return current year for copyright."""
+    import datetime
+    return datetime.datetime.now().year
+
+
+__version__ = _get_version()
 DEFAULT_GITHUB_SCOPES = "repo read:org"
 
 #
@@ -443,6 +467,14 @@ def _setup_shell(
         </p>
       </div>
     </main>
+
+    <footer class="py-6 text-center">
+      <p class="text-xs text-gray-400">
+        &copy; {_current_year()} Moovent. All rights reserved.
+        <span class="mx-1.5">&middot;</span>
+        <span class="text-gray-300">v{__version__}</span>
+      </p>
+    </footer>
   </body>
 </html>
 """.strip()
@@ -656,8 +688,8 @@ def _success_page_html() -> str:
     <link rel="icon" href="{_MOOVENT_LOGO_BASE64}" />
     <script src="https://cdn.tailwindcss.com"></script>
   </head>
-  <body class="text-gray-800" style="background-color: {_MOOVENT_BACKGROUND};">
-    <main class="min-h-screen flex items-center justify-center px-4 py-10">
+  <body class="min-h-screen flex flex-col text-gray-800" style="background-color: {_MOOVENT_BACKGROUND};">
+    <main class="flex-1 flex items-center justify-center px-4 py-10">
       <div class="w-full max-w-md bg-white border border-gray-200 rounded-xl shadow-sm p-6">
         <div class="mx-auto flex items-center justify-center mb-4">
           <img src="{_MOOVENT_LOGO_BASE64}" alt="Moovent" class="h-12" />
@@ -676,6 +708,14 @@ def _success_page_html() -> str:
         </div>
       </div>
     </main>
+
+    <footer class="py-6 text-center">
+      <p class="text-xs text-gray-400">
+        &copy; {_current_year()} Moovent. All rights reserved.
+        <span class="mx-1.5">&middot;</span>
+        <span class="text-gray-300">v{__version__}</span>
+      </p>
+    </footer>
     <script>setTimeout(() => window.close(), 800);</script>
   </body>
 </html>

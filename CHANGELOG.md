@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.7
+- UX: add footer with Moovent copyright and version number to setup pages.
+
 ## 0.3.6
 - UX: pre-fill workspace path with `~/Documents/Moovent-stack/` (works on Mac/Windows/Linux).
 
