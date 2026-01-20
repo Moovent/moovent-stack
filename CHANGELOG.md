@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.6
+- UX: pre-fill workspace path with `~/Documents/Moovent-stack/` (works on Mac/Windows/Linux).
+
 ## 0.3.5
 - Fix: fetch GitHub OAuth from Infisical on Step 2 load (handles users who completed Step 1 before 0.3.4).
 

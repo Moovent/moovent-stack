@@ -516,6 +516,13 @@ def _setup_step1_html(error_text: str = "") -> str:
     )
 
 
+def _default_workspace_path() -> str:
+    """Return sensible default workspace path based on OS."""
+    home = Path.home()
+    docs = home / "Documents" / "Moovent-stack"
+    return str(docs)
+
+
 def _setup_step2_html(
     github_login: Optional[str],
     error_text: str = "",
@@ -523,6 +530,10 @@ def _setup_step2_html(
     oauth_ready: bool = True,
 ) -> str:
     """Step 2: GitHub OAuth + install path."""
+    # Use default if not provided
+    if not workspace_root:
+        workspace_root = _default_workspace_path()
+
     status = (
         f'<span class="inline-flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md">Connected as {github_login}</span>'
         if github_login
@@ -540,11 +551,11 @@ def _setup_step2_html(
           name="workspace_root"
           required
           autocomplete="off"
-          placeholder="/Users/you/Projects/moovent"
+          placeholder="{_default_workspace_path()}"
           value="{workspace_root}"
           class="py-3 px-4 block w-full bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[{_MOOVENT_ACCENT}]/50 focus:border-[{_MOOVENT_ACCENT}]"
         />
-        <p class="mt-2 text-xs text-gray-500">This is where repos will be installed.</p>
+        <p class="mt-2 text-xs text-gray-500">Repos will be cloned into this folder.</p>
       </div>
 
       <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg">
