@@ -77,6 +77,7 @@ def _get_version() -> str:
 def _current_year() -> int:
     """Return current year for copyright."""
     import datetime
+
     return datetime.datetime.now().year
 
 
@@ -175,7 +176,9 @@ def _resolve_infisical_settings() -> tuple[str, Optional[str], Optional[str]]:
         return host, env_client_id, env_client_secret
 
     cfg = _load_config()
-    host = _normalize_infisical_host(str(cfg.get("infisical_host") or "").strip() or host)
+    host = _normalize_infisical_host(
+        str(cfg.get("infisical_host") or "").strip() or host
+    )
     client_id = str(cfg.get("infisical_client_id") or "").strip()
     client_secret = str(cfg.get("infisical_client_secret") or "").strip()
     return host, (client_id or None), (client_secret or None)
@@ -294,12 +297,12 @@ def _resolve_runner_path() -> Optional[Path]:
 
     raw_root = os.environ.get(WORKSPACE_ENV_ROOT, "").strip()
     if raw_root:
-        return (Path(raw_root).expanduser() / "run_local_stack.py")
+        return Path(raw_root).expanduser() / "run_local_stack.py"
 
     cfg = _load_config()
     root = str(cfg.get("workspace_root") or "").strip()
     if root:
-        return (Path(root).expanduser() / "run_local_stack.py")
+        return Path(root).expanduser() / "run_local_stack.py"
 
     return None
 
@@ -399,7 +402,9 @@ def _setup_shell(
     progress_cells = []
     for i in range(1, step_total + 1):
         bar_class = "bg-teal-600" if i <= step_index else "bg-teal-600 opacity-30"
-        progress_cells.append(f'<div class="{bar_class} h-2 flex-auto rounded-sm"></div>')
+        progress_cells.append(
+            f'<div class="{bar_class} h-2 flex-auto rounded-sm"></div>'
+        )
 
     return f"""
 <!doctype html>
@@ -571,7 +576,11 @@ def _setup_step2_html(
         if github_login
         else '<span class="text-xs text-gray-500">Not connected yet</span>'
     )
-    oauth_hint = "" if oauth_ready else "<p class='text-xs text-red-600 mt-2'>GitHub OAuth not configured. Contact your admin.</p>"
+    oauth_hint = (
+        ""
+        if oauth_ready
+        else "<p class='text-xs text-red-600 mt-2'>GitHub OAuth not configured. Contact your admin.</p>"
+    )
 
     content = f"""
     <form class="space-y-5" method="POST" action="/save-step2">
@@ -633,7 +642,9 @@ def _setup_step3_html(
 ) -> str:
     """Step 3: Repo + branch selection."""
     mqtt_options = "\n".join([f"<option value='{b}'></option>" for b in mqtt_branches])
-    dash_options = "\n".join([f"<option value='{b}'></option>" for b in dashboard_branches])
+    dash_options = "\n".join(
+        [f"<option value='{b}'></option>" for b in dashboard_branches]
+    )
     content = f"""
     <form class="space-y-5" method="POST" action="/save-step3">
       <div>
@@ -748,9 +759,10 @@ def _run_setup_server() -> None:
 
         def _next_step(self) -> int:
             cfg = _load_config()
-            if not str(cfg.get("infisical_client_id") or "").strip() or not str(
-                cfg.get("infisical_client_secret") or ""
-            ).strip():
+            if (
+                not str(cfg.get("infisical_client_id") or "").strip()
+                or not str(cfg.get("infisical_client_secret") or "").strip()
+            ):
                 return 1
             if not str(cfg.get("workspace_root") or "").strip():
                 return 2
@@ -796,7 +808,9 @@ def _run_setup_server() -> None:
                 mqtt_branches, mqtt_error, mqtt_reconnect = _github_list_branches(
                     "Moovent", "mqtt_dashboard_watch", token
                 )
-                dash_branches, dash_error, dash_reconnect = _github_list_branches("Moovent", "dashboard", token)
+                dash_branches, dash_error, dash_reconnect = _github_list_branches(
+                    "Moovent", "dashboard", token
+                )
                 errors = [err for err in (mqtt_error, dash_error) if err]
                 if errors:
                     # Use <br/> to preserve multiple error lines in the HTML block.
@@ -805,7 +819,9 @@ def _run_setup_server() -> None:
                         _save_config({"github_access_token": "", "github_login": ""})
                         github_login = None
                     else:
-                        github_login = str(cfg.get("github_login") or "").strip() or None
+                        github_login = (
+                            str(cfg.get("github_login") or "").strip() or None
+                        )
                     self._send(
                         200,
                         _setup_step2_html(
@@ -854,7 +870,11 @@ def _run_setup_server() -> None:
                 params = parse_qs(query)
                 code = (params.get("code", [""])[0] or "").strip()
                 returned_state = (params.get("state", [""])[0] or "").strip()
-                if not code or not returned_state or returned_state != state.oauth_state:
+                if (
+                    not code
+                    or not returned_state
+                    or returned_state != state.oauth_state
+                ):
                     github_login = str(cfg.get("github_login") or "").strip() or None
                     self._send(
                         200,
@@ -887,7 +907,9 @@ def _run_setup_server() -> None:
                     self.end_headers()
                     return
                 except Exception as exc:
-                    print(f"[setup] GitHub OAuth exchange failed: {exc}", file=sys.stderr)
+                    print(
+                        f"[setup] GitHub OAuth exchange failed: {exc}", file=sys.stderr
+                    )
                     self._send(
                         200,
                         _setup_step2_html(
@@ -934,7 +956,9 @@ def _run_setup_server() -> None:
                 mqtt_branches, mqtt_error, mqtt_reconnect = _github_list_branches(
                     "Moovent", "mqtt_dashboard_watch", token
                 )
-                dash_branches, dash_error, dash_reconnect = _github_list_branches("Moovent", "dashboard", token)
+                dash_branches, dash_error, dash_reconnect = _github_list_branches(
+                    "Moovent", "dashboard", token
+                )
                 errors = [err for err in (mqtt_error, dash_error) if err]
                 if errors:
                     # Use <br/> to preserve multiple error lines in the HTML block.
@@ -943,7 +967,9 @@ def _run_setup_server() -> None:
                         _save_config({"github_access_token": "", "github_login": ""})
                         github_login = None
                     else:
-                        github_login = str(cfg.get("github_login") or "").strip() or None
+                        github_login = (
+                            str(cfg.get("github_login") or "").strip() or None
+                        )
                     self._send(
                         200,
                         _setup_step2_html(
@@ -967,14 +993,20 @@ def _run_setup_server() -> None:
                 client_id = (form.get("client_id", [""])[0] or "").strip()
                 client_secret = (form.get("client_secret", [""])[0] or "").strip()
                 if not client_id:
-                    self._send(200, _setup_step1_html("Infisical Client ID is required."))
+                    self._send(
+                        200, _setup_step1_html("Infisical Client ID is required.")
+                    )
                     return
                 if not client_secret:
-                    self._send(200, _setup_step1_html("Infisical Client Secret is required."))
+                    self._send(
+                        200, _setup_step1_html("Infisical Client Secret is required.")
+                    )
                     return
 
                 host, _, _ = _resolve_infisical_settings()
-                allowed, reason = _fetch_infisical_access(host, client_id, client_secret)
+                allowed, reason = _fetch_infisical_access(
+                    host, client_id, client_secret
+                )
                 if not allowed:
                     self._send(
                         200,
@@ -987,7 +1019,9 @@ def _run_setup_server() -> None:
                     return
 
                 # Fetch GitHub OAuth creds from Infisical (so user doesn't need to enter them)
-                github_id, github_secret = _fetch_github_oauth_from_infisical(host, client_id, client_secret)
+                github_id, github_secret = _fetch_github_oauth_from_infisical(
+                    host, client_id, client_secret
+                )
 
                 config_data = {
                     "infisical_client_id": client_id,
@@ -1014,7 +1048,9 @@ def _run_setup_server() -> None:
             if self.path == "/save-step2":
                 workspace_root = (form.get("workspace_root", [""])[0] or "").strip()
                 if not workspace_root:
-                    github_login = str(_load_config().get("github_login") or "").strip() or None
+                    github_login = (
+                        str(_load_config().get("github_login") or "").strip() or None
+                    )
                     self._send(
                         200,
                         _setup_step2_html(
@@ -1035,24 +1071,47 @@ def _run_setup_server() -> None:
             if self.path == "/save-step3":
                 token = _resolve_github_token()
                 if not token:
-                    self._send(200, _setup_step2_html(None, error_text="Connect GitHub first."))
+                    self._send(
+                        200, _setup_step2_html(None, error_text="Connect GitHub first.")
+                    )
                     return
 
                 mqtt_branch = (form.get("mqtt_branch", ["main"])[0] or "main").strip()
-                dashboard_branch = (form.get("dashboard_branch", ["main"])[0] or "main").strip()
+                dashboard_branch = (
+                    form.get("dashboard_branch", ["main"])[0] or "main"
+                ).strip()
                 cfg = _load_config()
                 workspace_root = str(cfg.get("workspace_root") or "").strip()
                 if not workspace_root:
-                    self._send(200, _setup_step2_html(None, error_text="Workspace path is required."))
+                    self._send(
+                        200,
+                        _setup_step2_html(
+                            None, error_text="Workspace path is required."
+                        ),
+                    )
                     return
 
                 try:
                     root = Path(workspace_root).expanduser()
-                    _clone_or_update_repo("Moovent", "mqtt_dashboard_watch", mqtt_branch, root / "mqtt_dashboard_watch", token)
-                    _clone_or_update_repo("Moovent", "dashboard", dashboard_branch, root / "dashboard", token)
+                    _clone_or_update_repo(
+                        "Moovent",
+                        "mqtt_dashboard_watch",
+                        mqtt_branch,
+                        root / "mqtt_dashboard_watch",
+                        token,
+                    )
+                    _clone_or_update_repo(
+                        "Moovent",
+                        "dashboard",
+                        dashboard_branch,
+                        root / "dashboard",
+                        token,
+                    )
 
                     client_id = str(cfg.get("infisical_client_id") or "").strip()
-                    client_secret = str(cfg.get("infisical_client_secret") or "").strip()
+                    client_secret = str(
+                        cfg.get("infisical_client_secret") or ""
+                    ).strip()
                     if client_id and client_secret:
                         _inject_infisical_env(root, client_id, client_secret)
 
@@ -1066,7 +1125,9 @@ def _run_setup_server() -> None:
                     state.done = True
                     self._send(200, _success_page_html())
                 except Exception as exc:
-                    self._send(200, _setup_step3_html([], [], f"Download failed: {exc}"))
+                    self._send(
+                        200, _setup_step3_html([], [], f"Download failed: {exc}")
+                    )
                 return
 
             self._send(404, "Not found", "text/plain")
@@ -1142,7 +1203,10 @@ def _infisical_login(host: str, client_id: str, client_secret: str) -> Optional[
             if not isinstance(data, dict):
                 return None
             token = str(
-                data.get("accessToken") or data.get("token") or data.get("access_token") or ""
+                data.get("accessToken")
+                or data.get("token")
+                or data.get("access_token")
+                or ""
             ).strip()
             return token or None
     except Exception:
@@ -1188,7 +1252,9 @@ def _fetch_infisical_secrets(
                 if not isinstance(secret, dict):
                     continue
                 key = str(secret.get("secretKey") or secret.get("key") or "").strip()
-                value = str(secret.get("secretValue") or secret.get("value") or "").strip()
+                value = str(
+                    secret.get("secretValue") or secret.get("value") or ""
+                ).strip()
                 if key and value:
                     result[key] = value
             return result
@@ -1196,7 +1262,9 @@ def _fetch_infisical_secrets(
         return {}
 
 
-def _fetch_infisical_access(host: str, client_id: str, client_secret: str) -> tuple[Optional[bool], str]:
+def _fetch_infisical_access(
+    host: str, client_id: str, client_secret: str
+) -> tuple[Optional[bool], str]:
     """
     Validate Infisical Universal Auth credentials.
 
@@ -1244,7 +1312,9 @@ def _fetch_infisical_access(host: str, client_id: str, client_secret: str) -> tu
         return None, f"request_failed:{exc.__class__.__name__}"
 
 
-def _fetch_github_oauth_from_infisical(host: str, client_id: str, client_secret: str) -> tuple[Optional[str], Optional[str]]:
+def _fetch_github_oauth_from_infisical(
+    host: str, client_id: str, client_secret: str
+) -> tuple[Optional[str], Optional[str]]:
     """
     Fetch GitHub OAuth credentials from Infisical.
 
@@ -1257,10 +1327,16 @@ def _fetch_github_oauth_from_infisical(host: str, client_id: str, client_secret:
         return None, None
 
     project_id, environment, secret_path = _resolve_infisical_scope()
-    secrets = _fetch_infisical_secrets(host, token, project_id, environment, secret_path)
+    secrets = _fetch_infisical_secrets(
+        host, token, project_id, environment, secret_path
+    )
 
-    github_id = secrets.get("MOOVENT_GITHUB_CLIENT_ID") or secrets.get("GITHUB_CLIENT_ID")
-    github_secret = secrets.get("MOOVENT_GITHUB_CLIENT_SECRET") or secrets.get("GITHUB_CLIENT_SECRET")
+    github_id = secrets.get("MOOVENT_GITHUB_CLIENT_ID") or secrets.get(
+        "GITHUB_CLIENT_ID"
+    )
+    github_secret = secrets.get("MOOVENT_GITHUB_CLIENT_SECRET") or secrets.get(
+        "GITHUB_CLIENT_SECRET"
+    )
     return github_id, github_secret
 
 
@@ -1285,7 +1361,9 @@ def _ensure_github_oauth_from_infisical() -> None:
         infisical_host, infisical_client_id, infisical_client_secret
     )
     if github_id and github_secret:
-        _save_config({"github_client_id": github_id, "github_client_secret": github_secret})
+        _save_config(
+            {"github_client_id": github_id, "github_client_secret": github_secret}
+        )
 
 
 def _github_user_agent() -> str:
@@ -1408,7 +1486,9 @@ def _github_get_login(token: str) -> Optional[str]:
         return None
 
 
-def _github_list_branches(owner: str, repo: str, token: str) -> tuple[list[str], str, bool]:
+def _github_list_branches(
+    owner: str, repo: str, token: str
+) -> tuple[list[str], str, bool]:
     """
     List branch names for a repo.
 
@@ -1427,8 +1507,16 @@ def _github_list_branches(owner: str, repo: str, token: str) -> tuple[list[str],
             raw = resp.read().decode("utf-8").strip()
             data = json.loads(raw) if raw else []
             if not isinstance(data, list):
-                return [], f"GitHub API returned unexpected response for {owner}/{repo}.", False
-            branches = [str(item.get("name") or "").strip() for item in data if isinstance(item, dict)]
+                return (
+                    [],
+                    f"GitHub API returned unexpected response for {owner}/{repo}.",
+                    False,
+                )
+            branches = [
+                str(item.get("name") or "").strip()
+                for item in data
+                if isinstance(item, dict)
+            ]
             return branches, "", False
     except HTTPError as err:
         error_text, should_reconnect = _describe_github_http_error(err)
@@ -1497,7 +1585,9 @@ def _write_env_key(path: Path, key: str, value: str) -> None:
         pass
 
 
-def _inject_infisical_env(workspace_root: Path, client_id: str, client_secret: str) -> None:
+def _inject_infisical_env(
+    workspace_root: Path, client_id: str, client_secret: str
+) -> None:
     """
     Inject Infisical creds into mqtt_dashboard_watch/.env.
     """
@@ -1521,7 +1611,9 @@ def _run_git(cmd: list[str], cwd: Path) -> None:
     subprocess.check_call(cmd, cwd=str(cwd), env=env)
 
 
-def _clone_or_update_repo(owner: str, repo: str, branch: str, dest: Path, token: str) -> None:
+def _clone_or_update_repo(
+    owner: str, repo: str, branch: str, dest: Path, token: str
+) -> None:
     """
     Clone or update a repo to the requested branch.
 
@@ -1551,14 +1643,20 @@ def ensure_access_or_exit(host: str, client_id: str, client_secret: str) -> None
     if _cache_valid(cache, ttl_s) and cache.get("project_id") == project_id:
         if cache.get("allowed") is True:
             return
-        raise SystemExit(f"[access] Access denied (cached): {cache.get('reason', 'unknown')}")
+        raise SystemExit(
+            f"[access] Access denied (cached): {cache.get('reason', 'unknown')}"
+        )
 
     allowed, reason = _fetch_infisical_access(host, client_id, client_secret)
     if allowed is None:
         if cache.get("allowed") is True:
-            print("[access] Infisical unreachable; using cached allow.", file=sys.stderr)
+            print(
+                "[access] Infisical unreachable; using cached allow.", file=sys.stderr
+            )
             return
-        raise SystemExit("[access] Infisical auth failed and no cached allow is available.")
+        raise SystemExit(
+            "[access] Infisical auth failed and no cached allow is available."
+        )
 
     cache.update(
         {
@@ -1580,7 +1678,9 @@ def ensure_access_or_exit(host: str, client_id: str, client_secret: str) -> None
         if root_raw:
             _self_clean(Path(root_raw), cache_path)
         else:
-            print("[access] Cleanup skipped: install root not provided.", file=sys.stderr)
+            print(
+                "[access] Cleanup skipped: install root not provided.", file=sys.stderr
+            )
         raise SystemExit(3)
 
 
@@ -1603,7 +1703,10 @@ def main() -> int:
 
     if not client_id or not client_secret or not runner_path:
         if _setup_noninteractive():
-            print("[runner] Missing setup. Provide Infisical credentials and workspace path.", file=sys.stderr)
+            print(
+                "[runner] Missing setup. Provide Infisical credentials and workspace path.",
+                file=sys.stderr,
+            )
             return 2
         _run_setup_server()
         host, client_id, client_secret = _resolve_infisical_settings()
