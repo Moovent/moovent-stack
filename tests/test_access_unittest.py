@@ -24,13 +24,6 @@ class TestAccessGuard(unittest.TestCase):
         self.assertTrue(m._cache_valid({"checked_at": now - 10}, 60))
         self.assertFalse(m._cache_valid({"checked_at": now - 120}, 60))
 
-    def test_parse_access_response_defaults_cleanup_on_deny(self):
-        m = self._mod()
-        allowed, reason, cleanup = m._parse_access_response({"allowed": False, "reason": "revoked"})
-        self.assertFalse(allowed)
-        self.assertEqual(reason, "revoked")
-        self.assertTrue(cleanup)
-
     def test_safe_install_root_checks_cellar(self):
         m = self._mod()
         self.assertFalse(m._safe_install_root(Path("/")))
@@ -56,13 +49,44 @@ class TestAccessGuard(unittest.TestCase):
             self.assertTrue(ok)
             self.assertEqual(error, "")
 
-    def test_resolve_access_settings_prefers_env(self):
+    def test_normalize_infisical_host(self):
         m = self._mod()
-        os.environ[m.ACCESS_ENV_URL] = "https://env.example/access"
-        os.environ[m.ACCESS_ENV_TOKEN] = "tok"
-        url, token = m._resolve_access_settings()
-        self.assertEqual(url, "https://env.example/access")
-        self.assertEqual(token, "tok")
+        self.assertEqual(m._normalize_infisical_host("app.infisical.com"), "https://app.infisical.com")
+        self.assertEqual(m._normalize_infisical_host("https://eu.infisical.com/"), "https://eu.infisical.com")
+
+    def test_resolve_infisical_settings_prefers_env(self):
+        m = self._mod()
+        os.environ[m.INFISICAL_ENV_HOST] = "https://app.infisical.com"
+        os.environ[m.INFISICAL_ENV_CLIENT_ID] = "client_id"
+        os.environ[m.INFISICAL_ENV_CLIENT_SECRET] = "client_secret"
+        host, client_id, client_secret = m._resolve_infisical_settings()
+        self.assertEqual(host, "https://app.infisical.com")
+        self.assertEqual(client_id, "client_id")
+        self.assertEqual(client_secret, "client_secret")
+        os.environ.pop(m.INFISICAL_ENV_HOST, None)
+        os.environ.pop(m.INFISICAL_ENV_CLIENT_ID, None)
+        os.environ.pop(m.INFISICAL_ENV_CLIENT_SECRET, None)
+
+    def test_resolve_github_oauth_settings_prefers_env(self):
+        m = self._mod()
+        os.environ[m.GITHUB_ENV_CLIENT_ID] = "gh_id"
+        os.environ[m.GITHUB_ENV_CLIENT_SECRET] = "gh_secret"
+        client_id, client_secret = m._resolve_github_oauth_settings()
+        self.assertEqual(client_id, "gh_id")
+        self.assertEqual(client_secret, "gh_secret")
+        os.environ.pop(m.GITHUB_ENV_CLIENT_ID, None)
+        os.environ.pop(m.GITHUB_ENV_CLIENT_SECRET, None)
+
+    def test_write_env_key_updates(self):
+        m = self._mod()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / ".env"
+            path.write_text("FOO=bar\n# comment\n", encoding="utf-8")
+            m._write_env_key(path, "FOO", "baz")
+            m._write_env_key(path, "NEW_KEY", "value")
+            content = path.read_text(encoding="utf-8")
+            self.assertIn("FOO=baz", content)
+            self.assertIn("NEW_KEY=value", content)
 
     def test_setup_noninteractive_flag(self):
         m = self._mod()
