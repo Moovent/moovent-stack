@@ -715,6 +715,9 @@ def _run_setup_server() -> None:
                     self._send(200, _setup_step1_html())
                     return
                 if step == 2:
+                    # Try to fetch GitHub OAuth from Infisical if missing
+                    _ensure_github_oauth_from_infisical()
+                    cfg = _load_config()  # reload after potential update
                     github_login = str(cfg.get("github_login") or "").strip() or None
                     oauth_ready = all(_resolve_github_oauth_settings())
                     self._send(
@@ -733,6 +736,8 @@ def _run_setup_server() -> None:
                 return
 
             if self.path.startswith("/oauth/start"):
+                # Try to fetch GitHub OAuth from Infisical if missing
+                _ensure_github_oauth_from_infisical()
                 client_id, client_secret = _resolve_github_oauth_settings()
                 if not client_id or not client_secret:
                     github_login = str(cfg.get("github_login") or "").strip() or None
@@ -814,6 +819,9 @@ def _run_setup_server() -> None:
                 return
 
             if self.path.startswith("/step2"):
+                # Try to fetch GitHub OAuth from Infisical if missing
+                _ensure_github_oauth_from_infisical()
+                cfg = _load_config()  # reload after potential update
                 github_login = str(cfg.get("github_login") or "").strip() or None
                 oauth_ready = all(_resolve_github_oauth_settings())
                 self._send(
@@ -1150,6 +1158,30 @@ def _fetch_github_oauth_from_infisical(host: str, client_id: str, client_secret:
     github_id = secrets.get("MOOVENT_GITHUB_CLIENT_ID") or secrets.get("GITHUB_CLIENT_ID")
     github_secret = secrets.get("MOOVENT_GITHUB_CLIENT_SECRET") or secrets.get("GITHUB_CLIENT_SECRET")
     return github_id, github_secret
+
+
+def _ensure_github_oauth_from_infisical() -> None:
+    """
+    Fetch GitHub OAuth from Infisical if not already in config.
+    Called when Step 2 loads to handle users who completed Step 1 before this feature.
+    """
+    cfg = _load_config()
+    # Skip if already have OAuth creds
+    if cfg.get("github_client_id") and cfg.get("github_client_secret"):
+        return
+
+    # Need Infisical creds to fetch
+    infisical_host = str(cfg.get("infisical_host") or "").strip()
+    infisical_client_id = str(cfg.get("infisical_client_id") or "").strip()
+    infisical_client_secret = str(cfg.get("infisical_client_secret") or "").strip()
+    if not (infisical_host and infisical_client_id and infisical_client_secret):
+        return
+
+    github_id, github_secret = _fetch_github_oauth_from_infisical(
+        infisical_host, infisical_client_id, infisical_client_secret
+    )
+    if github_id and github_secret:
+        _save_config({"github_client_id": github_id, "github_client_secret": github_secret})
 
 
 def _github_api_request(url: str, token: str) -> dict:

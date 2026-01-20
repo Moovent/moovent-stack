@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.5
+- Fix: fetch GitHub OAuth from Infisical on Step 2 load (handles users who completed Step 1 before 0.3.4).
+
 ## 0.3.4
 - Simplify onboarding: GitHub OAuth credentials are now fetched automatically from Infisical after Step 1 succeeds.
 - Remove "Admin settings" section from Step 2 (users no longer need to enter GitHub OAuth Client ID/Secret).
