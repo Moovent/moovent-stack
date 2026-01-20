@@ -1,6 +1,6 @@
 [project]
 name = "moovent-stack"
-version = "0.3.1"
+version = "0.3.2"
 description = "Moovent internal developer stack launcher"
 readme = "README.md"
 requires-python = ">=3.9"

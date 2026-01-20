@@ -1246,9 +1246,11 @@ def ensure_access_or_exit(host: str, client_id: str, client_secret: str) -> None
     install_id = _install_id(cache, cache_path)
     project_id, _, _ = _resolve_infisical_scope()
 
-    if _cache_valid(cache, ttl_s):
-        # Cache is only valid if it matches the required project scope.
-        if cache.get("allowed") is True and cache.get("project_id") == project_id:
+    # Cache is only valid if:
+    # - still within TTL
+    # - bound to the required project (prevents stale cache across scope changes)
+    if _cache_valid(cache, ttl_s) and cache.get("project_id") == project_id:
+        if cache.get("allowed") is True:
             return
         raise SystemExit(f"[access] Access denied (cached): {cache.get('reason', 'unknown')}")
 

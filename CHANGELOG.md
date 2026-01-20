@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.2
+- Fix: avoid denying access due to stale pre-project-scope access cache files.
+
 ## 0.3.1
 - Step 1 now validates Infisical Universal Auth **and** access to the required project.
 - Inject Infisical scope keys (`INFISICAL_HOST`, `INFISICAL_PROJECT_ID`, `INFISICAL_ENVIRONMENT`, `INFISICAL_SECRET_PATH`) into `mqtt_dashboard_watch/.env`.
