@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.9
+- Debug: show detailed error message when GitHub OAuth exchange fails.
+
 ## 0.3.8
 - Fix: handle GitHub API 403 errors gracefully; show "token expired" message and allow reconnect.
 

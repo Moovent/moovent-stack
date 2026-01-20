@@ -867,13 +867,13 @@ def _run_setup_server() -> None:
                     self.send_header("Location", "/step2")
                     self.end_headers()
                     return
-                except Exception:
-                    github_login = str(cfg.get("github_login") or "").strip() or None
+                except Exception as exc:
+                    print(f"[setup] GitHub OAuth exchange failed: {exc}", file=sys.stderr)
                     self._send(
                         200,
                         _setup_step2_html(
-                            github_login,
-                            error_text="GitHub OAuth exchange failed. Please try again.",
+                            None,
+                            error_text=f"GitHub OAuth exchange failed: {exc}",
                             workspace_root=str(cfg.get("workspace_root") or "").strip(),
                         ),
                     )
