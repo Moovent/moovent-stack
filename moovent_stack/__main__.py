@@ -175,12 +175,7 @@ _MOOVENT_LOGO_BASE64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABdwAAAGoCA
 
 def _setup_page_html(error_text: str = "") -> str:
     """
-    Render the setup page HTML with Moovent branding.
-
-    Includes:
-    - Moovent logo at the top
-    - Clear explanations for each field (Access URL, Access Token, Workspace)
-    - Moovent brand colors in gradients and accents
+    Render the setup page HTML with Moovent branding (light mode only).
     """
     error_block = ""
     if error_text:
@@ -207,29 +202,29 @@ def _setup_page_html(error_text: str = "") -> str:
           <div class="mx-auto flex items-center justify-center">
             <img src="{_MOOVENT_LOGO_BASE64}" alt="Moovent" class="h-16" />
           </div>
-          <h1 class="mt-4 font-semibold text-2xl text-gray-800 dark:text-neutral-200">
+          <h1 class="mt-4 font-semibold text-2xl text-gray-800">
             Welcome to Moovent Stack
           </h1>
-          <p class="mt-2 text-sm text-gray-500 dark:text-neutral-400">
+          <p class="mt-2 text-sm text-gray-500">
             Run the full Moovent development environment locally.<br/>
             Quick setup, then you're ready to code.
           </p>
         </div>
 
         <!-- Card -->
-        <div class="relative overflow-hidden bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-neutral-900 dark:border-neutral-700">
+        <div class="relative overflow-hidden bg-white border border-gray-200 rounded-xl shadow-sm">
           <!-- Gradient header with Moovent colors -->
-          <div class="p-5 bg-gradient-to-r from-[{_MOOVENT_BLUE}]/30 via-[{_MOOVENT_TEAL}]/30 to-[{_MOOVENT_GREEN}]/30 dark:from-[{_MOOVENT_BLUE}]/20 dark:via-[{_MOOVENT_TEAL}]/20 dark:to-[{_MOOVENT_GREEN}]/20">
+          <div class="p-5" style="background: linear-gradient(to right, {_MOOVENT_BLUE}40, {_MOOVENT_TEAL}40, {_MOOVENT_GREEN}40);">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 class="font-semibold text-gray-800 dark:text-neutral-200">
+                <h2 class="font-semibold text-gray-800">
                   Developer Access
                 </h2>
-                <p class="mt-1 text-xs text-gray-600 dark:text-neutral-300">
+                <p class="mt-1 text-xs text-gray-600">
                   Connect to Moovent's internal services
                 </p>
               </div>
-              <span class="py-1 px-2 inline-flex items-center gap-x-1 text-xs font-semibold uppercase rounded-md bg-gradient-to-tr from-[{_MOOVENT_ACCENT}] to-teal-500 text-white">
+              <span class="py-1 px-2 inline-flex items-center gap-x-1 text-xs font-semibold uppercase rounded-md text-white" style="background: linear-gradient(to top right, {_MOOVENT_ACCENT}, #14b8a6);">
                 Setup
               </span>
             </div>
@@ -239,78 +234,81 @@ def _setup_page_html(error_text: str = "") -> str:
           <form class="p-5 space-y-5" method="POST" action="/save">
             {error_block}
 
-            <!-- Access URL field with explanation -->
+            <!-- Access URL field -->
             <div>
-              <label class="block mb-2 text-sm font-medium text-gray-800 dark:text-neutral-200">
+              <label class="block mb-2 text-sm font-medium text-gray-800">
                 Access URL <span class="text-red-500">*</span>
               </label>
               <input
                 name="access_url"
                 required
                 type="url"
+                autocomplete="url"
                 placeholder="https://access.moovent.io/verify"
-                class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm placeholder:text-gray-400 focus:border-[{_MOOVENT_ACCENT}] focus:ring-[{_MOOVENT_ACCENT}] dark:bg-transparent dark:border-neutral-700 dark:text-neutral-200 dark:placeholder:text-white/60"
+                class="py-3 px-4 block w-full bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[{_MOOVENT_ACCENT}]/50 focus:border-[{_MOOVENT_ACCENT}]"
               />
-              <div class="mt-2 p-2.5 bg-gray-50 border border-gray-100 rounded-lg dark:bg-neutral-800 dark:border-neutral-700">
-                <p class="text-xs text-gray-600 dark:text-neutral-400">
-                  <strong class="text-gray-700 dark:text-neutral-300">What is this?</strong>
+              <div class="mt-2 p-2.5 bg-gray-50 border border-gray-100 rounded-lg">
+                <p class="text-xs text-gray-600">
+                  <strong class="text-gray-700">What is this?</strong>
                   The Access URL is Moovent's internal endpoint that verifies you're an authorized developer. 
                   Your team lead will provide this URL when onboarding you.
                 </p>
               </div>
             </div>
 
-            <!-- Access Token field with explanation -->
+            <!-- Access Token field -->
             <div>
-              <label class="block mb-2 text-sm font-medium text-gray-800 dark:text-neutral-200">
+              <label class="block mb-2 text-sm font-medium text-gray-800">
                 Access Token <span class="text-xs text-gray-400 font-normal">(if required)</span>
               </label>
               <input
                 name="access_token"
                 type="password"
+                autocomplete="current-password"
                 placeholder="moo_dev_xxxxxxxxxxxx"
-                class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm placeholder:text-gray-400 focus:border-[{_MOOVENT_ACCENT}] focus:ring-[{_MOOVENT_ACCENT}] dark:bg-transparent dark:border-neutral-700 dark:text-neutral-200 dark:placeholder:text-white/60"
+                class="py-3 px-4 block w-full bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[{_MOOVENT_ACCENT}]/50 focus:border-[{_MOOVENT_ACCENT}]"
               />
-              <div class="mt-2 p-2.5 bg-gray-50 border border-gray-100 rounded-lg dark:bg-neutral-800 dark:border-neutral-700">
-                <p class="text-xs text-gray-600 dark:text-neutral-400">
-                  <strong class="text-gray-700 dark:text-neutral-300">What is this?</strong>
+              <div class="mt-2 p-2.5 bg-gray-50 border border-gray-100 rounded-lg">
+                <p class="text-xs text-gray-600">
+                  <strong class="text-gray-700">What is this?</strong>
                   A personal token that authenticates you to the access service. 
                   Some team configurations require it, others don't. Check with your team lead if unsure.
-                  <span class="block mt-1 text-gray-500 dark:text-neutral-500">Stored locally with restricted permissions (only you can read it).</span>
+                  <span class="block mt-1 text-gray-500">Stored locally with restricted permissions (only you can read it).</span>
                 </p>
               </div>
             </div>
 
             <!-- Workspace Folder field -->
             <div>
-              <label class="block mb-2 text-sm font-medium text-gray-800 dark:text-neutral-200">
+              <label class="block mb-2 text-sm font-medium text-gray-800">
                 Workspace Folder <span class="text-red-500">*</span>
               </label>
               <input
                 name="workspace_root"
                 required
+                autocomplete="off"
                 placeholder="/Users/you/Projects/moovent"
-                class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm placeholder:text-gray-400 focus:border-[{_MOOVENT_ACCENT}] focus:ring-[{_MOOVENT_ACCENT}] dark:bg-transparent dark:border-neutral-700 dark:text-neutral-200 dark:placeholder:text-white/60"
+                class="py-3 px-4 block w-full bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[{_MOOVENT_ACCENT}]/50 focus:border-[{_MOOVENT_ACCENT}]"
               />
-              <div class="mt-2 p-2.5 bg-gray-50 border border-gray-100 rounded-lg dark:bg-neutral-800 dark:border-neutral-700">
-                <p class="text-xs text-gray-600 dark:text-neutral-400">
-                  <strong class="text-gray-700 dark:text-neutral-300">What is this?</strong>
+              <div class="mt-2 p-2.5 bg-gray-50 border border-gray-100 rounded-lg">
+                <p class="text-xs text-gray-600">
+                  <strong class="text-gray-700">What is this?</strong>
                   The folder where you cloned the Moovent repos. It must contain:
                 </p>
-                <ul class="mt-1.5 text-xs text-gray-600 dark:text-neutral-400 space-y-0.5">
+                <ul class="mt-1.5 text-xs text-gray-600 space-y-0.5">
                   <li class="flex items-center gap-1.5">
-                    <svg class="size-3 text-[{_MOOVENT_ACCENT}]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
-                    <code class="px-1 py-0.5 bg-white border border-gray-200 rounded text-gray-700 dark:bg-neutral-900 dark:border-neutral-600 dark:text-neutral-300">mqtt_dashboard_watch/</code>
+                    <svg class="w-3 h-3" style="color: {_MOOVENT_ACCENT};" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+                    <code class="px-1 py-0.5 bg-white border border-gray-200 rounded text-gray-700">mqtt_dashboard_watch/</code>
                     <span class="text-gray-500">(backend)</span>
                   </li>
                   <li class="flex items-center gap-1.5">
-                    <svg class="size-3 text-[{_MOOVENT_ACCENT}]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
-                    <code class="px-1 py-0.5 bg-white border border-gray-200 rounded text-gray-700 dark:bg-neutral-900 dark:border-neutral-600 dark:text-neutral-300">dashboard/</code>
+                    <svg class="w-3 h-3" style="color: {_MOOVENT_ACCENT};" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+                    <code class="px-1 py-0.5 bg-white border border-gray-200 rounded text-gray-700">dashboard/</code>
                     <span class="text-gray-500">(frontend)</span>
                   </li>
                   <li class="flex items-center gap-1.5">
-                    <svg class="size-3 text-[{_MOOVENT_ACCENT}]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                    <code class="px-1 py-0.5 bg-white border border-gray-200 rounded text-gray-700 dark:bg-neutral-900 dark:border-neutral-600 dark:text-neutral-300">run_local_stack.py</code>
+                    <svg class="w-3 h-3" style="color: {_MOOVENT_ACCENT};" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    <code class="px-1 py-0.5 bg-white border border-gray-200 rounded text-gray-700">run_local_stack.py</code>
                     <span class="text-gray-500">(launcher script)</span>
                   </li>
                 </ul>
@@ -320,27 +318,28 @@ def _setup_page_html(error_text: str = "") -> str:
             <div class="pt-2">
               <button
                 type="submit"
-                class="py-3 px-4 w-full inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent bg-[{_MOOVENT_ACCENT}] text-white hover:bg-[{_MOOVENT_ACCENT}]/90 focus:outline-none focus:ring-2 focus:ring-[{_MOOVENT_ACCENT}]/50"
+                class="py-3 px-4 w-full inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                style="background-color: {_MOOVENT_ACCENT}; --tw-ring-color: {_MOOVENT_ACCENT};"
               >
                 Save &amp; Start Moovent Stack
-                <svg class="shrink-0 size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"/></svg>
               </button>
             </div>
 
-            <div class="p-3 bg-gray-50 border border-gray-200 rounded-lg dark:bg-neutral-800 dark:border-neutral-700">
-              <p class="text-xs text-gray-600 dark:text-neutral-300 flex items-center gap-1.5">
-                <svg class="size-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+            <div class="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+              <p class="text-xs text-gray-600 flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
                 Settings saved locally to
-                <code class="px-1.5 py-0.5 rounded bg-white border border-gray-200 text-gray-700 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-200">~/.moovent_stack_config.json</code>
+                <code class="px-1.5 py-0.5 rounded bg-white border border-gray-200 text-gray-700">~/.moovent_stack_config.json</code>
               </p>
             </div>
           </form>
         </div>
 
         <!-- Footer -->
-        <p class="mt-6 text-center text-xs text-gray-500 dark:text-neutral-400">
+        <p class="mt-6 text-center text-xs text-gray-500">
           Need help? Contact your team lead or check the
-          <a href="https://github.com/Moovent/mqtt_dashboard_watch/blob/main/help/INSTALLATION.md" target="_blank" class="text-[{_MOOVENT_ACCENT}] hover:underline">installation guide</a>.
+          <a href="https://github.com/Moovent/mqtt_dashboard_watch/blob/main/help/INSTALLATION.md" target="_blank" class="hover:underline" style="color: {_MOOVENT_ACCENT};">installation guide</a>.
         </p>
       </div>
     </main>
@@ -350,7 +349,7 @@ def _setup_page_html(error_text: str = "") -> str:
 
 
 def _success_page_html() -> str:
-    """Render the success page after saving config."""
+    """Render the success page after saving config (light mode only)."""
     return f"""
 <!doctype html>
 <html lang="en">
@@ -366,15 +365,15 @@ def _success_page_html() -> str:
         <div class="mx-auto flex items-center justify-center mb-4">
           <img src="{_MOOVENT_LOGO_BASE64}" alt="Moovent" class="h-12" />
         </div>
-        <div class="mx-auto size-14 flex items-center justify-center rounded-full border-2 border-emerald-500 text-emerald-500">
-          <svg class="size-7" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <div class="mx-auto w-14 h-14 flex items-center justify-center rounded-full border-2 border-emerald-500 text-emerald-500">
+          <svg class="w-7 h-7" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>
         </div>
-        <h2 class="mt-4 text-center font-semibold text-lg text-gray-800 dark:text-neutral-200">You're all set!</h2>
-        <p class="mt-2 text-center text-sm text-gray-500 dark:text-neutral-400">
+        <h2 class="mt-4 text-center font-semibold text-lg text-gray-800">You're all set!</h2>
+        <p class="mt-2 text-center text-sm text-gray-500">
           Moovent Stack is starting. You can close this tab.
         </p>
         <div class="mt-5 flex justify-center">
-          <button type="button" onclick="window.close()" class="py-2.5 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 focus:outline-none focus:bg-gray-50 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800">
+          <button type="button" onclick="window.close()" class="py-2.5 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 focus:outline-none focus:bg-gray-50">
             Close tab
           </button>
         </div>
