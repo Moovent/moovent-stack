@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.8
+- Fix: handle GitHub API 403 errors gracefully; show "token expired" message and allow reconnect.
+
 ## 0.3.7
 - UX: add footer with Moovent copyright and version number to setup pages.
 

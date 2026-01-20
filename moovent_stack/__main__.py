@@ -783,6 +783,20 @@ def _run_setup_server() -> None:
                 token = _resolve_github_token() or ""
                 mqtt_branches = _github_list_branches("Moovent", "mqtt_dashboard_watch", token) if token else []
                 dash_branches = _github_list_branches("Moovent", "dashboard", token) if token else []
+                # If branches couldn't be loaded, token may be invalid/expired
+                if token and not mqtt_branches and not dash_branches:
+                    github_login = str(cfg.get("github_login") or "").strip() or None
+                    # Clear invalid token so user can reconnect
+                    _save_config({"github_access_token": "", "github_login": ""})
+                    self._send(
+                        200,
+                        _setup_step2_html(
+                            None,
+                            error_text="GitHub token expired or invalid. Please reconnect.",
+                            workspace_root=str(cfg.get("workspace_root") or "").strip(),
+                        ),
+                    )
+                    return
                 self._send(200, _setup_step3_html(mqtt_branches, dash_branches))
                 return
 
@@ -900,6 +914,19 @@ def _run_setup_server() -> None:
                     return
                 mqtt_branches = _github_list_branches("Moovent", "mqtt_dashboard_watch", token)
                 dash_branches = _github_list_branches("Moovent", "dashboard", token)
+                # If branches couldn't be loaded, token may be invalid/expired
+                if not mqtt_branches and not dash_branches:
+                    # Clear invalid token so user can reconnect
+                    _save_config({"github_access_token": "", "github_login": ""})
+                    self._send(
+                        200,
+                        _setup_step2_html(
+                            None,
+                            error_text="GitHub token expired or invalid. Please reconnect.",
+                            workspace_root=str(cfg.get("workspace_root") or "").strip(),
+                        ),
+                    )
+                    return
                 self._send(200, _setup_step3_html(mqtt_branches, dash_branches))
                 return
 
@@ -1279,17 +1306,25 @@ def _github_get_login(token: str) -> Optional[str]:
 
 
 def _github_list_branches(owner: str, repo: str, token: str) -> list[str]:
-    """List branch names for a repo."""
+    """List branch names for a repo. Returns empty list on error."""
     url = f"https://api.github.com/repos/{owner}/{repo}/branches?per_page=100"
     req = Request(url, method="GET")
     req.add_header("Authorization", f"Bearer {token}")
     req.add_header("Accept", "application/vnd.github+json")
-    with urlopen(req, timeout=ACCESS_REQUEST_TIMEOUT_S) as resp:
-        raw = resp.read().decode("utf-8").strip()
-        data = json.loads(raw) if raw else []
-        if not isinstance(data, list):
-            return []
-        return [str(item.get("name") or "").strip() for item in data if isinstance(item, dict)]
+    try:
+        with urlopen(req, timeout=ACCESS_REQUEST_TIMEOUT_S) as resp:
+            raw = resp.read().decode("utf-8").strip()
+            data = json.loads(raw) if raw else []
+            if not isinstance(data, list):
+                return []
+            return [str(item.get("name") or "").strip() for item in data if isinstance(item, dict)]
+    except HTTPError as err:
+        # 401/403 means token is invalid or expired
+        print(f"[setup] GitHub API error {err.code}: {err.reason}", file=sys.stderr)
+        return []
+    except Exception as exc:
+        print(f"[setup] GitHub API error: {exc}", file=sys.stderr)
+        return []
 
 
 def _safe_install_root(install_root: Path) -> bool:
