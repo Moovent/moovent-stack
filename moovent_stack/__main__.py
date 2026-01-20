@@ -32,6 +32,9 @@ from urllib.request import Request, urlopen
 INFISICAL_ENV_HOST = "INFISICAL_HOST"
 INFISICAL_ENV_CLIENT_ID = "INFISICAL_CLIENT_ID"
 INFISICAL_ENV_CLIENT_SECRET = "INFISICAL_CLIENT_SECRET"
+INFISICAL_ENV_PROJECT_ID = "INFISICAL_PROJECT_ID"
+INFISICAL_ENV_ENVIRONMENT = "INFISICAL_ENVIRONMENT"
+INFISICAL_ENV_SECRET_PATH = "INFISICAL_SECRET_PATH"
 GITHUB_ENV_CLIENT_ID = "MOOVENT_GITHUB_CLIENT_ID"
 GITHUB_ENV_CLIENT_SECRET = "MOOVENT_GITHUB_CLIENT_SECRET"
 GITHUB_ENV_ACCESS_TOKEN = "MOOVENT_GITHUB_ACCESS_TOKEN"
@@ -53,6 +56,22 @@ DEFAULT_CACHE_PATH = Path.home() / ".moovent_stack_access.json"
 CONFIG_PATH = Path.home() / ".moovent_stack_config.json"
 DEFAULT_INFISICAL_HOST = "https://app.infisical.com"
 DEFAULT_GITHUB_SCOPES = "repo read:org"
+
+#
+# Infisical scope (org/project) enforcement
+#
+# Purpose:
+# - Prevent users from proceeding past setup unless their Universal Auth creds can
+#   access the *required* Infisical project (and therefore the correct org).
+#
+# Notes:
+# - Today we have a single org + single project. We enforce those IDs here.
+# - We validate access by listing secrets scoped to the required project ID.
+# - This mirrors the mqtt_dashboard_watch integration (Universal Auth + list_secrets).
+REQUIRED_INFISICAL_ORG_ID = "20256abe-9337-498a-af56-d08d6e762d29"
+REQUIRED_INFISICAL_PROJECT_ID = "b33db90d-cc5b-464e-b58c-a09e7328e83d"
+DEFAULT_INFISICAL_ENVIRONMENT = "dev"
+DEFAULT_INFISICAL_SECRET_PATH = "/"
 
 
 def _env_bool(value: Optional[str]) -> bool:
@@ -134,6 +153,65 @@ def _resolve_infisical_settings() -> tuple[str, Optional[str], Optional[str]]:
     client_id = str(cfg.get("infisical_client_id") or "").strip()
     client_secret = str(cfg.get("infisical_client_secret") or "").strip()
     return host, (client_id or None), (client_secret or None)
+
+
+def _normalize_infisical_secret_path(path: Optional[str]) -> str:
+    """
+    Ensure secret path is absolute to avoid accidental path mismatches.
+    """
+    value = (path or "").strip()
+    if not value:
+        return DEFAULT_INFISICAL_SECRET_PATH
+    if not value.startswith("/"):
+        return f"/{value}"
+    return value
+
+
+def _resolve_infisical_scope() -> tuple[str, str, str]:
+    """
+    Resolve the Infisical scope used for access validation.
+
+    We intentionally enforce a single org + project for now.
+
+    Returns:
+    - project_id (required project UUID)
+    - environment (default: dev)
+    - secret_path (default: /)
+    """
+    # Project is fixed (single-project org).
+    project_id = REQUIRED_INFISICAL_PROJECT_ID
+
+    # Environment/path can be overridden to match your Infisical configuration.
+    # This uses the same env var names as mqtt_dashboard_watch.
+    cfg = _load_config()
+    environment = (
+        os.environ.get(INFISICAL_ENV_ENVIRONMENT)
+        or str(cfg.get("infisical_environment") or "")
+        or DEFAULT_INFISICAL_ENVIRONMENT
+    ).strip() or DEFAULT_INFISICAL_ENVIRONMENT
+    secret_path = _normalize_infisical_secret_path(
+        os.environ.get(INFISICAL_ENV_SECRET_PATH)
+        or str(cfg.get("infisical_secret_path") or "")
+        or DEFAULT_INFISICAL_SECRET_PATH
+    )
+    return project_id, environment, secret_path
+
+
+def _required_project_id_mismatch_reason() -> Optional[str]:
+    """
+    Enforce the required project ID if the user explicitly configured one.
+
+    This avoids a footgun where a user points the stack at the wrong Infisical project
+    and still passes Step 1.
+    """
+    cfg = _load_config()
+    configured = (
+        os.environ.get(INFISICAL_ENV_PROJECT_ID)
+        or str(cfg.get("infisical_project_id") or "")
+    ).strip()
+    if configured and configured != REQUIRED_INFISICAL_PROJECT_ID:
+        return "project_id_mismatch"
+    return None
 
 
 def _resolve_github_oauth_settings() -> tuple[Optional[str], Optional[str]]:
@@ -399,6 +477,18 @@ def _setup_step1_html(error_text: str = "") -> str:
         />
         <p class="mt-2 text-xs text-gray-500">
           Stored locally with restricted permissions. Default host: app.infisical.com (set INFISICAL_HOST to override).
+        </p>
+      </div>
+
+      <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+        <p class="text-xs text-gray-500 mb-1">Access scope</p>
+        <p class="text-sm text-gray-800">
+          Org: <span class="font-mono text-xs">{REQUIRED_INFISICAL_ORG_ID}</span><br/>
+          Project: <span class="font-mono text-xs">{REQUIRED_INFISICAL_PROJECT_ID}</span><br/>
+          Env: <span class="font-mono text-xs">{DEFAULT_INFISICAL_ENVIRONMENT}</span>
+        </p>
+        <p class="mt-2 text-xs text-gray-500">
+          We verify your credentials can access this project before continuing.
         </p>
       </div>
 
@@ -782,7 +872,14 @@ def _run_setup_server() -> None:
                 host, _, _ = _resolve_infisical_settings()
                 allowed, reason = _fetch_infisical_access(host, client_id, client_secret)
                 if not allowed:
-                    self._send(200, _setup_step1_html(f"Infisical auth failed: {reason}"))
+                    self._send(
+                        200,
+                        _setup_step1_html(
+                            "Infisical access check failed. "
+                            f"Reason: {reason}. "
+                            "Ensure your Machine Identity has access to the required project."
+                        ),
+                    )
                     return
 
                 _save_config(
@@ -790,6 +887,11 @@ def _run_setup_server() -> None:
                         "infisical_client_id": client_id,
                         "infisical_client_secret": client_secret,
                         "infisical_host": host,
+                        # Persist enforced scope so other steps can reuse it.
+                        "infisical_org_id": REQUIRED_INFISICAL_ORG_ID,
+                        "infisical_project_id": REQUIRED_INFISICAL_PROJECT_ID,
+                        "infisical_environment": DEFAULT_INFISICAL_ENVIRONMENT,
+                        "infisical_secret_path": DEFAULT_INFISICAL_SECRET_PATH,
                     }
                 )
                 self.send_response(302)
@@ -923,10 +1025,16 @@ def _fetch_infisical_access(host: str, client_id: str, client_secret: str) -> tu
     - allowed: None if request failed (network/server)
     - reason: failure reason for logging
     """
-    url = f"{host}/api/v1/auth/universal-auth/login"
+    project_id, environment, secret_path = _resolve_infisical_scope()
+    mismatch = _required_project_id_mismatch_reason()
+    if mismatch:
+        return False, mismatch
+
+    # 1) Universal Auth login (machine identity)
+    login_url = f"{host}/api/v1/auth/universal-auth/login"
     payload = {"clientId": client_id, "clientSecret": client_secret}
     body = json.dumps(payload).encode("utf-8")
-    req = Request(url, data=body, method="POST")
+    req = Request(login_url, data=body, method="POST")
     req.add_header("Content-Type", "application/json")
 
     try:
@@ -936,9 +1044,37 @@ def _fetch_infisical_access(host: str, client_id: str, client_secret: str) -> tu
             if not isinstance(data, dict):
                 return False, "invalid_response"
             # Accept common token fields to confirm auth
-            if data.get("accessToken") or data.get("token") or data.get("access_token"):
+            token = str(
+                data.get("accessToken") or data.get("token") or data.get("access_token") or ""
+            ).strip()
+            if not token:
+                return False, "invalid_response"
+
+            # 2) Enforce project access by listing secrets for the required project.
+            # This mirrors mqtt_dashboard_watch (Universal Auth + list_secrets scoped to project).
+            #
+            # Important:
+            # - We never log or print the secrets payload.
+            # - Any 2xx response is sufficient proof of access.
+            from urllib.parse import urlencode
+
+            query = urlencode(
+                {
+                    "projectId": project_id,
+                    "environment": environment,
+                    "secretPath": secret_path,
+                    "expandSecretReferences": "false",
+                    "includeImports": "false",
+                    "recursive": "false",
+                }
+            )
+            secrets_url = f"{host}/api/v4/secrets?{query}"
+            secrets_req = Request(secrets_url, method="GET")
+            secrets_req.add_header("Authorization", f"Bearer {token}")
+            secrets_req.add_header("Accept", "application/json")
+            with urlopen(secrets_req, timeout=ACCESS_REQUEST_TIMEOUT_S) as secrets_resp:
+                _ = secrets_resp.read()  # intentionally ignored
                 return True, ""
-            return False, "invalid_response"
     except HTTPError as err:
         if 400 <= err.code < 500:
             return False, f"http_{err.code}"
@@ -1067,6 +1203,14 @@ def _inject_infisical_env(workspace_root: Path, client_id: str, client_secret: s
     Inject Infisical creds into mqtt_dashboard_watch/.env.
     """
     env_path = workspace_root / "mqtt_dashboard_watch" / ".env"
+    # Keep config aligned with mqtt_dashboard_watch Infisical loader env vars.
+    # This prevents local runs failing due to missing project/environment settings.
+    host, _, _ = _resolve_infisical_settings()
+    project_id, environment, secret_path = _resolve_infisical_scope()
+    _write_env_key(env_path, "INFISICAL_HOST", host)
+    _write_env_key(env_path, "INFISICAL_PROJECT_ID", project_id)
+    _write_env_key(env_path, "INFISICAL_ENVIRONMENT", environment)
+    _write_env_key(env_path, "INFISICAL_SECRET_PATH", secret_path)
     _write_env_key(env_path, "INFISICAL_CLIENT_ID", client_id)
     _write_env_key(env_path, "INFISICAL_CLIENT_SECRET", client_secret)
 
@@ -1100,9 +1244,11 @@ def ensure_access_or_exit(host: str, client_id: str, client_secret: str) -> None
     cache_path = _cache_path()
     cache = _load_json(cache_path)
     install_id = _install_id(cache, cache_path)
+    project_id, _, _ = _resolve_infisical_scope()
 
     if _cache_valid(cache, ttl_s):
-        if cache.get("allowed") is True:
+        # Cache is only valid if it matches the required project scope.
+        if cache.get("allowed") is True and cache.get("project_id") == project_id:
             return
         raise SystemExit(f"[access] Access denied (cached): {cache.get('reason', 'unknown')}")
 
@@ -1113,7 +1259,15 @@ def ensure_access_or_exit(host: str, client_id: str, client_secret: str) -> None
             return
         raise SystemExit("[access] Infisical auth failed and no cached allow is available.")
 
-    cache.update({"checked_at": time.time(), "allowed": bool(allowed), "reason": reason, "install_id": install_id})
+    cache.update(
+        {
+            "checked_at": time.time(),
+            "allowed": bool(allowed),
+            "reason": reason,
+            "install_id": install_id,
+            "project_id": project_id,
+        }
+    )
     _save_json(cache_path, cache)
 
     if allowed:

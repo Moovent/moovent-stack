@@ -3,6 +3,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from urllib.error import HTTPError
 
 
 class TestAccessGuard(unittest.TestCase):
@@ -94,6 +95,93 @@ class TestAccessGuard(unittest.TestCase):
         self.assertFalse(m._setup_noninteractive())
         os.environ[m.SETUP_ENV_NONINTERACTIVE] = "1"
         self.assertTrue(m._setup_noninteractive())
+
+    def test_fetch_infisical_access_requires_project_access(self):
+        m = self._mod()
+        os.environ[m.INFISICAL_ENV_PROJECT_ID] = m.REQUIRED_INFISICAL_PROJECT_ID
+
+        class _FakeResp:
+            def __init__(self, body: str):
+                self._body = body.encode("utf-8")
+
+            def read(self) -> bytes:
+                return self._body
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+        calls = {"login": 0, "secrets": 0}
+        real_urlopen = m.urlopen
+
+        def fake_urlopen(req, timeout=0):  # noqa: ANN001 - matches stdlib signature
+            url = getattr(req, "full_url", "")
+            if url.endswith("/api/v1/auth/universal-auth/login"):
+                calls["login"] += 1
+                return _FakeResp('{"accessToken":"token123"}')
+            if "/api/v4/secrets?" in url:
+                calls["secrets"] += 1
+                return _FakeResp('{"secrets":[],"imports":[]}')
+            raise AssertionError(f"Unexpected url: {url}")
+
+        try:
+            m.urlopen = fake_urlopen
+            allowed, reason = m._fetch_infisical_access("https://app.infisical.com", "id", "secret")
+            self.assertTrue(allowed)
+            self.assertEqual(reason, "")
+            self.assertEqual(calls["login"], 1)
+            self.assertEqual(calls["secrets"], 1)
+        finally:
+            m.urlopen = real_urlopen
+            os.environ.pop(m.INFISICAL_ENV_PROJECT_ID, None)
+
+    def test_fetch_infisical_access_denies_when_project_access_fails(self):
+        m = self._mod()
+        os.environ[m.INFISICAL_ENV_PROJECT_ID] = m.REQUIRED_INFISICAL_PROJECT_ID
+
+        class _FakeResp:
+            def __init__(self, body: str):
+                self._body = body.encode("utf-8")
+
+            def read(self) -> bytes:
+                return self._body
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+        real_urlopen = m.urlopen
+
+        def fake_urlopen(req, timeout=0):  # noqa: ANN001 - matches stdlib signature
+            url = getattr(req, "full_url", "")
+            if url.endswith("/api/v1/auth/universal-auth/login"):
+                return _FakeResp('{"accessToken":"token123"}')
+            if "/api/v4/secrets?" in url:
+                raise HTTPError(url, 403, "Forbidden", hdrs=None, fp=None)
+            raise AssertionError(f"Unexpected url: {url}")
+
+        try:
+            m.urlopen = fake_urlopen
+            allowed, reason = m._fetch_infisical_access("https://app.infisical.com", "id", "secret")
+            self.assertFalse(allowed)
+            self.assertEqual(reason, "http_403")
+        finally:
+            m.urlopen = real_urlopen
+            os.environ.pop(m.INFISICAL_ENV_PROJECT_ID, None)
+
+    def test_fetch_infisical_access_rejects_wrong_project_id_if_configured(self):
+        m = self._mod()
+        os.environ[m.INFISICAL_ENV_PROJECT_ID] = "wrong-project"
+        try:
+            allowed, reason = m._fetch_infisical_access("https://app.infisical.com", "id", "secret")
+            self.assertFalse(allowed)
+            self.assertEqual(reason, "project_id_mismatch")
+        finally:
+            os.environ.pop(m.INFISICAL_ENV_PROJECT_ID, None)
 
 
 if __name__ == "__main__":

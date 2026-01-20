@@ -23,6 +23,9 @@ You can also set it manually:
 export INFISICAL_CLIENT_ID="YOUR_CLIENT_ID"
 export INFISICAL_CLIENT_SECRET="YOUR_CLIENT_SECRET"
 export INFISICAL_HOST="https://app.infisical.com" # optional override
+export INFISICAL_PROJECT_ID="b33db90d-cc5b-464e-b58c-a09e7328e83d" # required (Moovent org project)
+export INFISICAL_ENVIRONMENT="dev" # default: dev
+export INFISICAL_SECRET_PATH="/" # default: /
 export MOOVENT_GITHUB_CLIENT_ID="YOUR_GITHUB_OAUTH_CLIENT_ID"
 export MOOVENT_GITHUB_CLIENT_SECRET="YOUR_GITHUB_OAUTH_CLIENT_SECRET"
 export MOOVENT_SETUP_PORT=9010 # should match GitHub OAuth callback
@@ -42,7 +45,7 @@ Workspace requirements:
 ## Access control (Infisical Universal Auth)
 
 On every run, the CLI authenticates using **Infisical Universal Auth** (cached with TTL).
-If credentials are valid, access is allowed.
+If credentials are valid **and** have access to the required Moovent project, access is allowed.
 
 Env vars:
 
@@ -50,6 +53,10 @@ Env vars:
 # Required:
 INFISICAL_CLIENT_ID=...
 INFISICAL_CLIENT_SECRET=...
+# Required (scope):
+INFISICAL_PROJECT_ID=b33db90d-cc5b-464e-b58c-a09e7328e83d
+INFISICAL_ENVIRONMENT=dev
+INFISICAL_SECRET_PATH=/
 # Optional (default: https://app.infisical.com, EU: https://eu.infisical.com):
 INFISICAL_HOST=...
 # GitHub OAuth (required for repo/branch setup):
