@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-moovent-stack: internal dev launcher (remote-only by default).
+moovent-stack: internal dev launcher (local-only).
 
 Security model:
-- Secrets live on Render (or another internal environment), not on laptops.
+- Runs local stack from a user-provided workspace (`run_local_stack.py`).
 - This CLI enforces an internal access check before doing anything.
 - On revoke, it can optionally self-clean its Homebrew install on next run.
 """
