@@ -528,7 +528,7 @@ def _setup_step2_html(
         if github_login
         else '<span class="text-xs text-gray-500">Not connected yet</span>'
     )
-    oauth_hint = "" if oauth_ready else "<p class='text-xs text-red-600 mt-2'>Missing GitHub OAuth Client ID/Secret.</p>"
+    oauth_hint = "" if oauth_ready else "<p class='text-xs text-red-600 mt-2'>GitHub OAuth not configured. Contact your admin.</p>"
 
     content = f"""
     <form class="space-y-5" method="POST" action="/save-step2">
@@ -559,16 +559,6 @@ def _setup_step2_html(
         </div>
         <div class="mt-2">{status}</div>
         {oauth_hint}
-      </div>
-
-      <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg">
-        <p class="text-xs text-gray-500 mb-2">Admin settings (OAuth App)</p>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <input name="github_client_id" placeholder="GitHub OAuth Client ID"
-            class="py-2.5 px-3 block w-full bg-white border border-gray-200 rounded-lg text-xs text-gray-800 placeholder:text-gray-400" />
-          <input name="github_client_secret" placeholder="GitHub OAuth Client Secret"
-            class="py-2.5 px-3 block w-full bg-white border border-gray-200 rounded-lg text-xs text-gray-800 placeholder:text-gray-400" />
-        </div>
       </div>
 
       <div class="pt-2">
@@ -884,18 +874,26 @@ def _run_setup_server() -> None:
                     )
                     return
 
-                _save_config(
-                    {
-                        "infisical_client_id": client_id,
-                        "infisical_client_secret": client_secret,
-                        "infisical_host": host,
-                        # Persist enforced scope so other steps can reuse it.
-                        "infisical_org_id": REQUIRED_INFISICAL_ORG_ID,
-                        "infisical_project_id": REQUIRED_INFISICAL_PROJECT_ID,
-                        "infisical_environment": DEFAULT_INFISICAL_ENVIRONMENT,
-                        "infisical_secret_path": DEFAULT_INFISICAL_SECRET_PATH,
-                    }
-                )
+                # Fetch GitHub OAuth creds from Infisical (so user doesn't need to enter them)
+                github_id, github_secret = _fetch_github_oauth_from_infisical(host, client_id, client_secret)
+
+                config_data = {
+                    "infisical_client_id": client_id,
+                    "infisical_client_secret": client_secret,
+                    "infisical_host": host,
+                    # Persist enforced scope so other steps can reuse it.
+                    "infisical_org_id": REQUIRED_INFISICAL_ORG_ID,
+                    "infisical_project_id": REQUIRED_INFISICAL_PROJECT_ID,
+                    "infisical_environment": DEFAULT_INFISICAL_ENVIRONMENT,
+                    "infisical_secret_path": DEFAULT_INFISICAL_SECRET_PATH,
+                }
+                # Auto-populate GitHub OAuth if found in Infisical
+                if github_id:
+                    config_data["github_client_id"] = github_id
+                if github_secret:
+                    config_data["github_client_secret"] = github_secret
+
+                _save_config(config_data)
                 self.send_response(302)
                 self.send_header("Location", "/step2")
                 self.end_headers()
@@ -903,8 +901,6 @@ def _run_setup_server() -> None:
 
             if self.path == "/save-step2":
                 workspace_root = (form.get("workspace_root", [""])[0] or "").strip()
-                github_client_id = (form.get("github_client_id", [""])[0] or "").strip()
-                github_client_secret = (form.get("github_client_secret", [""])[0] or "").strip()
                 if not workspace_root:
                     github_login = str(_load_config().get("github_login") or "").strip() or None
                     self._send(
@@ -917,12 +913,7 @@ def _run_setup_server() -> None:
                     )
                     return
 
-                data = {"workspace_root": str(Path(workspace_root).expanduser())}
-                if github_client_id:
-                    data["github_client_id"] = github_client_id
-                if github_client_secret:
-                    data["github_client_secret"] = github_client_secret
-                _save_config(data)
+                _save_config({"workspace_root": str(Path(workspace_root).expanduser())})
 
                 self.send_response(302)
                 self.send_header("Location", "/step3")
@@ -1018,6 +1009,81 @@ def _cache_valid(cache: dict, ttl_s: float) -> bool:
     return (time.time() - float(checked_at)) <= ttl_s
 
 
+def _infisical_login(host: str, client_id: str, client_secret: str) -> Optional[str]:
+    """
+    Authenticate with Infisical Universal Auth and return access token.
+
+    Returns:
+    - access token string on success
+    - None on failure
+    """
+    login_url = f"{host}/api/v1/auth/universal-auth/login"
+    payload = {"clientId": client_id, "clientSecret": client_secret}
+    body = json.dumps(payload).encode("utf-8")
+    req = Request(login_url, data=body, method="POST")
+    req.add_header("Content-Type", "application/json")
+
+    try:
+        with urlopen(req, timeout=ACCESS_REQUEST_TIMEOUT_S) as resp:
+            raw = resp.read().decode("utf-8").strip()
+            data = json.loads(raw) if raw else {}
+            if not isinstance(data, dict):
+                return None
+            token = str(
+                data.get("accessToken") or data.get("token") or data.get("access_token") or ""
+            ).strip()
+            return token or None
+    except Exception:
+        return None
+
+
+def _fetch_infisical_secrets(
+    host: str, token: str, project_id: str, environment: str, secret_path: str
+) -> dict[str, str]:
+    """
+    Fetch secrets from Infisical and return as dict.
+
+    Returns:
+    - dict of secret_key -> secret_value
+    - empty dict on failure
+    """
+    from urllib.parse import urlencode
+
+    query = urlencode(
+        {
+            "projectId": project_id,
+            "environment": environment,
+            "secretPath": secret_path,
+            "expandSecretReferences": "true",
+            "includeImports": "true",
+            "recursive": "false",
+        }
+    )
+    secrets_url = f"{host}/api/v4/secrets?{query}"
+    secrets_req = Request(secrets_url, method="GET")
+    secrets_req.add_header("Authorization", f"Bearer {token}")
+    secrets_req.add_header("Accept", "application/json")
+
+    try:
+        with urlopen(secrets_req, timeout=ACCESS_REQUEST_TIMEOUT_S) as resp:
+            raw = resp.read().decode("utf-8").strip()
+            data = json.loads(raw) if raw else {}
+            secrets_list = data.get("secrets", [])
+            if not isinstance(secrets_list, list):
+                return {}
+            result = {}
+            for secret in secrets_list:
+                if not isinstance(secret, dict):
+                    continue
+                key = str(secret.get("secretKey") or secret.get("key") or "").strip()
+                value = str(secret.get("secretValue") or secret.get("value") or "").strip()
+                if key and value:
+                    result[key] = value
+            return result
+    except Exception:
+        return {}
+
+
 def _fetch_infisical_access(host: str, client_id: str, client_secret: str) -> tuple[Optional[bool], str]:
     """
     Validate Infisical Universal Auth credentials.
@@ -1032,57 +1098,58 @@ def _fetch_infisical_access(host: str, client_id: str, client_secret: str) -> tu
     if mismatch:
         return False, mismatch
 
-    # 1) Universal Auth login (machine identity)
-    login_url = f"{host}/api/v1/auth/universal-auth/login"
-    payload = {"clientId": client_id, "clientSecret": client_secret}
-    body = json.dumps(payload).encode("utf-8")
-    req = Request(login_url, data=body, method="POST")
-    req.add_header("Content-Type", "application/json")
+    token = _infisical_login(host, client_id, client_secret)
+    if not token:
+        return False, "auth_failed"
+
+    # Enforce project access by listing secrets for the required project.
+    from urllib.parse import urlencode
+
+    query = urlencode(
+        {
+            "projectId": project_id,
+            "environment": environment,
+            "secretPath": secret_path,
+            "expandSecretReferences": "false",
+            "includeImports": "false",
+            "recursive": "false",
+        }
+    )
+    secrets_url = f"{host}/api/v4/secrets?{query}"
+    secrets_req = Request(secrets_url, method="GET")
+    secrets_req.add_header("Authorization", f"Bearer {token}")
+    secrets_req.add_header("Accept", "application/json")
 
     try:
-        with urlopen(req, timeout=ACCESS_REQUEST_TIMEOUT_S) as resp:
-            raw = resp.read().decode("utf-8").strip()
-            data = json.loads(raw) if raw else {}
-            if not isinstance(data, dict):
-                return False, "invalid_response"
-            # Accept common token fields to confirm auth
-            token = str(
-                data.get("accessToken") or data.get("token") or data.get("access_token") or ""
-            ).strip()
-            if not token:
-                return False, "invalid_response"
-
-            # 2) Enforce project access by listing secrets for the required project.
-            # This mirrors mqtt_dashboard_watch (Universal Auth + list_secrets scoped to project).
-            #
-            # Important:
-            # - We never log or print the secrets payload.
-            # - Any 2xx response is sufficient proof of access.
-            from urllib.parse import urlencode
-
-            query = urlencode(
-                {
-                    "projectId": project_id,
-                    "environment": environment,
-                    "secretPath": secret_path,
-                    "expandSecretReferences": "false",
-                    "includeImports": "false",
-                    "recursive": "false",
-                }
-            )
-            secrets_url = f"{host}/api/v4/secrets?{query}"
-            secrets_req = Request(secrets_url, method="GET")
-            secrets_req.add_header("Authorization", f"Bearer {token}")
-            secrets_req.add_header("Accept", "application/json")
-            with urlopen(secrets_req, timeout=ACCESS_REQUEST_TIMEOUT_S) as secrets_resp:
-                _ = secrets_resp.read()  # intentionally ignored
-                return True, ""
+        with urlopen(secrets_req, timeout=ACCESS_REQUEST_TIMEOUT_S) as resp:
+            _ = resp.read()  # intentionally ignored
+            return True, ""
     except HTTPError as err:
         if 400 <= err.code < 500:
             return False, f"http_{err.code}"
         return None, f"http_{err.code}"
     except Exception as exc:
         return None, f"request_failed:{exc.__class__.__name__}"
+
+
+def _fetch_github_oauth_from_infisical(host: str, client_id: str, client_secret: str) -> tuple[Optional[str], Optional[str]]:
+    """
+    Fetch GitHub OAuth credentials from Infisical.
+
+    Returns:
+    - (github_client_id, github_client_secret) on success
+    - (None, None) on failure
+    """
+    token = _infisical_login(host, client_id, client_secret)
+    if not token:
+        return None, None
+
+    project_id, environment, secret_path = _resolve_infisical_scope()
+    secrets = _fetch_infisical_secrets(host, token, project_id, environment, secret_path)
+
+    github_id = secrets.get("MOOVENT_GITHUB_CLIENT_ID") or secrets.get("GITHUB_CLIENT_ID")
+    github_secret = secrets.get("MOOVENT_GITHUB_CLIENT_SECRET") or secrets.get("GITHUB_CLIENT_SECRET")
+    return github_id, github_secret
 
 
 def _github_api_request(url: str, token: str) -> dict:

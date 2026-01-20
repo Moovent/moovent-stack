@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.4
+- Simplify onboarding: GitHub OAuth credentials are now fetched automatically from Infisical after Step 1 succeeds.
+- Remove "Admin settings" section from Step 2 (users no longer need to enter GitHub OAuth Client ID/Secret).
+- Store secrets `MOOVENT_GITHUB_CLIENT_ID` and `MOOVENT_GITHUB_CLIENT_SECRET` in Infisical to enable this flow.
+
 ## 0.3.3
 - Fix: use optimized (resized to 400px) Moovent logo PNG for onboarding header to reduce embedded base64 size from ~286KB to ~40KB.
 - Change: default Infisical host to EU (`https://eu.infisical.com`); override with `INFISICAL_HOST` if needed.
