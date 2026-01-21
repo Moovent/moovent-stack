@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.3
+- Fix: add fallback Infisical endpoints for org/workspace name lookups.
+
 ## 0.4.2
 - Fix: fetch org name from `/api/v1/organization/{orgId}` endpoint (workspace API doesn't return org name).
 

@@ -248,6 +248,38 @@ def _fetch_infisical_access(
         return None, f"request_failed:{exc.__class__.__name__}"
 
 
+def _fetch_json_with_fallback(
+    host: str, token: str, paths: list[str]
+) -> Optional[dict]:
+    """Try multiple API paths and return the first JSON dict response."""
+    for path in paths:
+        url = f"{host}{path}"
+        req = Request(url, method="GET")
+        req.add_header("Authorization", f"Bearer {token}")
+        req.add_header("Accept", "application/json")
+        try:
+            with urlopen(req, timeout=ACCESS_REQUEST_TIMEOUT_S) as resp:
+                raw = resp.read().decode("utf-8").strip()
+                data = json.loads(raw) if raw else {}
+                if isinstance(data, dict):
+                    return data
+        except Exception:
+            continue
+    return None
+
+
+def _extract_name_from_payload(payload: dict, keys: list[str]) -> Optional[str]:
+    """Extract a name from nested payload keys."""
+    for key in keys:
+        candidate = payload.get(key)
+        if isinstance(candidate, dict):
+            name = str(candidate.get("name") or "").strip()
+            if name:
+                return name
+    name = str(payload.get("name") or "").strip()
+    return name or None
+
+
 def _fetch_project_name(host: str, token: str, project_id: str) -> Optional[str]:
     """
     Fetch project name from Infisical workspace API.
@@ -256,21 +288,18 @@ def _fetch_project_name(host: str, token: str, project_id: str) -> Optional[str]
     - project_name on success
     - None on failure
     """
-    url = f"{host}/api/v2/workspace/{project_id}"
-    req = Request(url, method="GET")
-    req.add_header("Authorization", f"Bearer {token}")
-    req.add_header("Accept", "application/json")
-
-    try:
-        with urlopen(req, timeout=ACCESS_REQUEST_TIMEOUT_S) as resp:
-            raw = resp.read().decode("utf-8").strip()
-            data = json.loads(raw) if raw else {}
-            workspace = data.get("workspace", data)
-            if not isinstance(workspace, dict):
-                return None
-            return str(workspace.get("name") or "").strip() or None
-    except Exception:
+    payload = _fetch_json_with_fallback(
+        host,
+        token,
+        [
+            f"/api/v2/workspace/{project_id}",
+            f"/api/v1/workspace/{project_id}",
+            f"/api/v1/workspaces/{project_id}",
+        ],
+    )
+    if not payload:
         return None
+    return _extract_name_from_payload(payload, ["workspace", "project"])
 
 
 def _fetch_org_name(host: str, token: str, org_id: str) -> Optional[str]:
@@ -281,21 +310,17 @@ def _fetch_org_name(host: str, token: str, org_id: str) -> Optional[str]:
     - org_name on success
     - None on failure
     """
-    url = f"{host}/api/v1/organization/{org_id}"
-    req = Request(url, method="GET")
-    req.add_header("Authorization", f"Bearer {token}")
-    req.add_header("Accept", "application/json")
-
-    try:
-        with urlopen(req, timeout=ACCESS_REQUEST_TIMEOUT_S) as resp:
-            raw = resp.read().decode("utf-8").strip()
-            data = json.loads(raw) if raw else {}
-            org = data.get("organization", data)
-            if not isinstance(org, dict):
-                return None
-            return str(org.get("name") or "").strip() or None
-    except Exception:
+    payload = _fetch_json_with_fallback(
+        host,
+        token,
+        [
+            f"/api/v1/organization/{org_id}",
+            f"/api/v1/organizations/{org_id}",
+        ],
+    )
+    if not payload:
         return None
+    return _extract_name_from_payload(payload, ["organization", "org"])
 
 
 def _fetch_scope_display_names(
