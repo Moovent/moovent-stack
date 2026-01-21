@@ -248,15 +248,13 @@ def _fetch_infisical_access(
         return None, f"request_failed:{exc.__class__.__name__}"
 
 
-def _fetch_project_details(
-    host: str, token: str, project_id: str
-) -> tuple[Optional[str], Optional[str]]:
+def _fetch_project_name(host: str, token: str, project_id: str) -> Optional[str]:
     """
-    Fetch project and organization names from Infisical API.
+    Fetch project name from Infisical workspace API.
 
     Returns:
-    - (project_name, org_name) on success
-    - (None, None) on failure
+    - project_name on success
+    - None on failure
     """
     url = f"{host}/api/v2/workspace/{project_id}"
     req = Request(url, method="GET")
@@ -269,17 +267,35 @@ def _fetch_project_details(
             data = json.loads(raw) if raw else {}
             workspace = data.get("workspace", data)
             if not isinstance(workspace, dict):
-                return None, None
-            project_name = str(workspace.get("name") or "").strip() or None
-            # Org info may be nested under "organization"
-            org = workspace.get("organization") or workspace.get("org") or {}
-            if isinstance(org, dict):
-                org_name = str(org.get("name") or "").strip() or None
-            else:
-                org_name = None
-            return project_name, org_name
+                return None
+            return str(workspace.get("name") or "").strip() or None
     except Exception:
-        return None, None
+        return None
+
+
+def _fetch_org_name(host: str, token: str, org_id: str) -> Optional[str]:
+    """
+    Fetch organization name from Infisical organization API.
+
+    Returns:
+    - org_name on success
+    - None on failure
+    """
+    url = f"{host}/api/v1/organization/{org_id}"
+    req = Request(url, method="GET")
+    req.add_header("Authorization", f"Bearer {token}")
+    req.add_header("Accept", "application/json")
+
+    try:
+        with urlopen(req, timeout=ACCESS_REQUEST_TIMEOUT_S) as resp:
+            raw = resp.read().decode("utf-8").strip()
+            data = json.loads(raw) if raw else {}
+            org = data.get("organization", data)
+            if not isinstance(org, dict):
+                return None
+            return str(org.get("name") or "").strip() or None
+    except Exception:
+        return None
 
 
 def _fetch_scope_display_names(
@@ -292,11 +308,17 @@ def _fetch_scope_display_names(
     - (project_name, org_name) on success
     - (None, None) on failure (will fall back to UUIDs in UI)
     """
+    from .config import REQUIRED_INFISICAL_ORG_ID
+
     token = _infisical_login(host, client_id, client_secret)
     if not token:
         return None, None
+
     project_id, _, _ = _resolve_infisical_scope()
-    return _fetch_project_details(host, token, project_id)
+    project_name = _fetch_project_name(host, token, project_id)
+    org_name = _fetch_org_name(host, token, REQUIRED_INFISICAL_ORG_ID)
+
+    return project_name, org_name
 
 
 def _fetch_github_oauth_from_infisical(

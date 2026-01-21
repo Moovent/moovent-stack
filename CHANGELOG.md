@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.2
+- Fix: fetch org name from `/api/v1/organization/{orgId}` endpoint (workspace API doesn't return org name).
+
 ## 0.4.1
 - UX: display human-readable org and project names in setup Step 1 (fetched from Infisical API) instead of UUIDs.
 
