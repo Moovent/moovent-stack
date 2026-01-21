@@ -640,46 +640,163 @@ def _setup_step3_html(
     dashboard_branches: list[str],
     error_text: str = "",
 ) -> str:
-    """Step 3: Repo + branch selection."""
-    mqtt_options = "\n".join([f"<option value='{b}'></option>" for b in mqtt_branches])
-    dash_options = "\n".join(
-        [f"<option value='{b}'></option>" for b in dashboard_branches]
-    )
+    """Step 3: Repo + branch selection with card-based UI.
+
+    Each repo is a card with:
+    - Toggle to enable/disable installation
+    - Branch dropdown (only when enabled)
+    - Only shows repos the user has access to
+    """
+    # Build repo cards - only show repos the user can access
+    cards_html = ""
+
+    # mqtt_dashboard_watch card
+    if mqtt_branches:
+        mqtt_options = "\n".join(
+            [
+                f"<option value='{b}' {'selected' if b == 'main' else ''}>{b}</option>"
+                for b in mqtt_branches
+            ]
+        )
+        cards_html += f"""
+      <div class="p-4 bg-white border border-gray-200 rounded-xl">
+        <div class="flex items-start gap-x-4">
+          <!-- Repo icon -->
+          <div class="shrink-0 flex items-center justify-center w-10 h-10 bg-gray-100 text-gray-600 rounded-lg">
+            <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 0 0-1.883 2.542l.857 6a2.25 2.25 0 0 0 2.227 1.932H19.05a2.25 2.25 0 0 0 2.227-1.932l.857-6a2.25 2.25 0 0 0-1.883-2.542m-16.5 0V6A2.25 2.25 0 0 1 6 3.75h3.879a1.5 1.5 0 0 1 1.06.44l2.122 2.12a1.5 1.5 0 0 0 1.06.44H18A2.25 2.25 0 0 1 20.25 9v.776"/>
+            </svg>
+          </div>
+
+          <!-- Content -->
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between gap-x-3">
+              <div>
+                <h3 class="text-sm font-semibold text-gray-800">mqtt_dashboard_watch</h3>
+                <p class="mt-0.5 text-xs text-gray-500">Backend service for MQTT monitoring</p>
+              </div>
+              <!-- Toggle -->
+              <label class="relative inline-block w-11 h-6 cursor-pointer shrink-0">
+                <input type="checkbox" name="install_mqtt" value="1" class="peer sr-only" checked onchange="toggleRepoCard(this, 'mqtt-branch-select')"/>
+                <span class="absolute inset-0 bg-gray-200 rounded-full transition-colors duration-200 ease-in-out peer-checked:bg-[{_MOOVENT_ACCENT}]"></span>
+                <span class="absolute top-1/2 start-0.5 -translate-y-1/2 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ease-in-out peer-checked:translate-x-full"></span>
+              </label>
+            </div>
+
+            <!-- Branch select (only visible when enabled) -->
+            <div id="mqtt-branch-select" class="mt-3 pt-3 border-t border-gray-100">
+              <label class="block text-xs font-medium text-gray-600 mb-1.5">Branch</label>
+              <select name="mqtt_branch" class="py-2 px-3 block w-full bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[{_MOOVENT_ACCENT}]/30 focus:border-[{_MOOVENT_ACCENT}]">
+                {mqtt_options}
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+        """
+
+    # dashboard card
+    if dashboard_branches:
+        dash_options = "\n".join(
+            [
+                f"<option value='{b}' {'selected' if b == 'main' else ''}>{b}</option>"
+                for b in dashboard_branches
+            ]
+        )
+        cards_html += f"""
+      <div class="p-4 bg-white border border-gray-200 rounded-xl">
+        <div class="flex items-start gap-x-4">
+          <!-- Repo icon -->
+          <div class="shrink-0 flex items-center justify-center w-10 h-10 bg-gray-100 text-gray-600 rounded-lg">
+            <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 20.25h12m-7.5-3v3m3-3v3m-10.125-3h17.25c.621 0 1.125-.504 1.125-1.125V4.875c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125Z"/>
+            </svg>
+          </div>
+
+          <!-- Content -->
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between gap-x-3">
+              <div>
+                <h3 class="text-sm font-semibold text-gray-800">dashboard</h3>
+                <p class="mt-0.5 text-xs text-gray-500">Admin dashboard frontend</p>
+              </div>
+              <!-- Toggle -->
+              <label class="relative inline-block w-11 h-6 cursor-pointer shrink-0">
+                <input type="checkbox" name="install_dashboard" value="1" class="peer sr-only" checked onchange="toggleRepoCard(this, 'dashboard-branch-select')"/>
+                <span class="absolute inset-0 bg-gray-200 rounded-full transition-colors duration-200 ease-in-out peer-checked:bg-[{_MOOVENT_ACCENT}]"></span>
+                <span class="absolute top-1/2 start-0.5 -translate-y-1/2 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ease-in-out peer-checked:translate-x-full"></span>
+              </label>
+            </div>
+
+            <!-- Branch select (only visible when enabled) -->
+            <div id="dashboard-branch-select" class="mt-3 pt-3 border-t border-gray-100">
+              <label class="block text-xs font-medium text-gray-600 mb-1.5">Branch</label>
+              <select name="dashboard_branch" class="py-2 px-3 block w-full bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[{_MOOVENT_ACCENT}]/30 focus:border-[{_MOOVENT_ACCENT}]">
+                {dash_options}
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+        """
+
+    # Message when no repos are accessible
+    if not cards_html:
+        cards_html = """
+      <div class="p-6 bg-amber-50 border border-amber-200 rounded-xl text-center">
+        <svg class="mx-auto w-8 h-8 text-amber-500 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/>
+        </svg>
+        <p class="text-sm text-amber-800 font-medium">No accessible repositories</p>
+        <p class="mt-1 text-xs text-amber-600">Your GitHub account doesn't have access to the Moovent repositories. Please contact an administrator.</p>
+      </div>
+        """
+
     content = f"""
-    <form class="space-y-5" method="POST" action="/save-step3">
-      <div>
-        <label class="block mb-2 text-sm font-medium text-gray-800">
-          mqtt_dashboard_watch branch
-        </label>
-        <input name="mqtt_branch" list="mqtt-branches" placeholder="main"
-          class="py-3 px-4 block w-full bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[{_MOOVENT_ACCENT}]/50 focus:border-[{_MOOVENT_ACCENT}]" />
-        <datalist id="mqtt-branches">{mqtt_options}</datalist>
-      </div>
+    <form class="space-y-4" method="POST" action="/save-step3" id="step3-form">
+      <p class="text-sm text-gray-500 mb-4">Toggle the repositories you want to install and select which branch to use.</p>
 
-      <div>
-        <label class="block mb-2 text-sm font-medium text-gray-800">
-          dashboard branch
-        </label>
-        <input name="dashboard_branch" list="dashboard-branches" placeholder="main"
-          class="py-3 px-4 block w-full bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[{_MOOVENT_ACCENT}]/50 focus:border-[{_MOOVENT_ACCENT}]" />
-        <datalist id="dashboard-branches">{dash_options}</datalist>
-      </div>
+      {cards_html}
 
-      <div class="pt-2">
+      <div class="pt-3">
         <button
           type="submit"
-          class="py-3 px-4 w-full inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2"
+          id="install-btn"
+          class="py-3 px-4 w-full inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
           style="background-color: {_MOOVENT_ACCENT}; --tw-ring-color: {_MOOVENT_ACCENT};"
         >
-          Download &amp; Configure
-          <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"/></svg>
+          <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+          </svg>
+          Install Selected
         </button>
       </div>
     </form>
+
+    <script>
+      function toggleRepoCard(checkbox, branchSelectId) {{
+        const branchDiv = document.getElementById(branchSelectId);
+        if (branchDiv) {{
+          branchDiv.style.display = checkbox.checked ? 'block' : 'none';
+        }}
+        updateInstallButton();
+      }}
+
+      function updateInstallButton() {{
+        const form = document.getElementById('step3-form');
+        const btn = document.getElementById('install-btn');
+        const mqttChecked = form.querySelector('input[name="install_mqtt"]')?.checked || false;
+        const dashChecked = form.querySelector('input[name="install_dashboard"]')?.checked || false;
+        btn.disabled = !mqttChecked && !dashChecked;
+      }}
+
+      // Initialize on load
+      document.addEventListener('DOMContentLoaded', updateInstallButton);
+    </script>
     """
     return _setup_shell(
-        "Repo + branches",
-        "Select which branches to download",
+        "Select repositories",
+        "Choose which repositories to install",
         3,
         3,
         content,
@@ -1076,6 +1193,19 @@ def _run_setup_server() -> None:
                     )
                     return
 
+                # Check which repos are selected for installation
+                install_mqtt = "install_mqtt" in form
+                install_dashboard = "install_dashboard" in form
+
+                if not install_mqtt and not install_dashboard:
+                    self._send(
+                        200,
+                        _setup_step3_html(
+                            [], [], "Please select at least one repository to install."
+                        ),
+                    )
+                    return
+
                 mqtt_branch = (form.get("mqtt_branch", ["main"])[0] or "main").strip()
                 dashboard_branch = (
                     form.get("dashboard_branch", ["main"])[0] or "main"
@@ -1093,20 +1223,25 @@ def _run_setup_server() -> None:
 
                 try:
                     root = Path(workspace_root).expanduser()
-                    _clone_or_update_repo(
-                        "Moovent",
-                        "mqtt_dashboard_watch",
-                        mqtt_branch,
-                        root / "mqtt_dashboard_watch",
-                        token,
-                    )
-                    _clone_or_update_repo(
-                        "Moovent",
-                        "dashboard",
-                        dashboard_branch,
-                        root / "dashboard",
-                        token,
-                    )
+
+                    # Only clone selected repos
+                    if install_mqtt:
+                        _clone_or_update_repo(
+                            "Moovent",
+                            "mqtt_dashboard_watch",
+                            mqtt_branch,
+                            root / "mqtt_dashboard_watch",
+                            token,
+                        )
+
+                    if install_dashboard:
+                        _clone_or_update_repo(
+                            "Moovent",
+                            "dashboard",
+                            dashboard_branch,
+                            root / "dashboard",
+                            token,
+                        )
 
                     client_id = str(cfg.get("infisical_client_id") or "").strip()
                     client_secret = str(
@@ -1117,8 +1252,12 @@ def _run_setup_server() -> None:
 
                     _save_config(
                         {
-                            "mqtt_branch": mqtt_branch,
-                            "dashboard_branch": dashboard_branch,
+                            "mqtt_branch": mqtt_branch if install_mqtt else "",
+                            "dashboard_branch": (
+                                dashboard_branch if install_dashboard else ""
+                            ),
+                            "install_mqtt": install_mqtt,
+                            "install_dashboard": install_dashboard,
                             "setup_complete": True,
                         }
                     )

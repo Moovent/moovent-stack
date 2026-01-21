@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.11
+- UX: redesigned Step 3 with card-based repo selection (toggle on/off instead of text inputs).
+- UX: repos are now optional - user can choose which to install via toggles.
+- UX: branch selector only shows when repo is enabled; uses proper dropdown instead of datalist.
+- UX: only shows repos the user has access to (hides repos with 403 errors).
+- UX: better visual feedback with repo icons and descriptions.
+
 ## 0.3.10
 - Fix: show actionable GitHub access errors (SSO/scopes) instead of generic reconnect.
 - Fix: add GitHub User-Agent header to avoid 403s on branch fetch.
