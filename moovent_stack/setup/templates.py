@@ -170,8 +170,16 @@ def _setup_shell(
 """.strip()
 
 
-def _setup_step1_html(error_text: str = "") -> str:
+def _setup_step1_html(
+    error_text: str = "",
+    org_name: Optional[str] = None,
+    project_name: Optional[str] = None,
+) -> str:
     """Step 1: Infisical credentials only."""
+    # Use human-readable names if available, otherwise fall back to UUIDs
+    org_display = org_name or REQUIRED_INFISICAL_ORG_ID
+    project_display = project_name or REQUIRED_INFISICAL_PROJECT_ID
+
     content = f"""
     <form class="space-y-5" method="POST" action="/save-step1">
       <div>
@@ -207,8 +215,8 @@ def _setup_step1_html(error_text: str = "") -> str:
       <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg">
         <p class="text-xs text-gray-500 mb-1">Access scope</p>
         <p class="text-sm text-gray-800">
-          Org: <span class="font-mono text-xs">{REQUIRED_INFISICAL_ORG_ID}</span><br/>
-          Project: <span class="font-mono text-xs">{REQUIRED_INFISICAL_PROJECT_ID}</span><br/>
+          Org: <span class="font-semibold">{org_display}</span><br/>
+          Project: <span class="font-semibold">{project_display}</span><br/>
           Env: <span class="font-mono text-xs">{DEFAULT_INFISICAL_ENVIRONMENT}</span>
         </p>
         <p class="mt-2 text-xs text-gray-500">

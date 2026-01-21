@@ -31,6 +31,7 @@ from ..infisical import (
     _ensure_github_oauth_from_infisical,
     _fetch_infisical_access,
     _fetch_github_oauth_from_infisical,
+    _fetch_scope_display_names,
     _resolve_infisical_settings,
 )
 from ..storage import _load_config, _save_config
@@ -92,7 +93,15 @@ def _run_setup_server() -> None:
             if self.path == "/" or self.path.startswith("/?"):
                 step = self._next_step()
                 if step == 1:
-                    self._send(200, _setup_step1_html())
+                    # Use cached display names if available
+                    org_name = str(cfg.get("infisical_org_name") or "").strip() or None
+                    project_name = (
+                        str(cfg.get("infisical_project_name") or "").strip() or None
+                    )
+                    self._send(
+                        200,
+                        _setup_step1_html(org_name=org_name, project_name=project_name),
+                    )
                     return
                 if step == 2:
                     # Try to fetch GitHub OAuth from Infisical if missing
@@ -218,7 +227,15 @@ def _run_setup_server() -> None:
                 return
 
             if self.path.startswith("/step1"):
-                self._send(200, _setup_step1_html())
+                # Use cached display names if available
+                org_name = str(cfg.get("infisical_org_name") or "").strip() or None
+                project_name = (
+                    str(cfg.get("infisical_project_name") or "").strip() or None
+                )
+                self._send(
+                    200,
+                    _setup_step1_html(org_name=org_name, project_name=project_name),
+                )
                 return
 
             if self.path.startswith("/step2"):
@@ -305,17 +322,26 @@ def _run_setup_server() -> None:
                     host, client_id, client_secret
                 )
                 if not allowed:
+                    # Try to fetch display names for nicer error page
+                    project_name, org_name = _fetch_scope_display_names(
+                        host, client_id, client_secret
+                    )
                     self._send(
                         200,
                         _setup_step1_html(
                             "Infisical access check failed. "
                             f"Reason: {reason}. "
-                            "Ensure your Machine Identity has access to the required project."
+                            "Ensure your Machine Identity has access to the required project.",
+                            org_name=org_name,
+                            project_name=project_name,
                         ),
                     )
                     return
 
-                # Fetch GitHub OAuth creds from Infisical (so user doesn't need to enter them)
+                # Fetch display names and GitHub OAuth creds from Infisical
+                project_name, org_name = _fetch_scope_display_names(
+                    host, client_id, client_secret
+                )
                 github_id, github_secret = _fetch_github_oauth_from_infisical(
                     host, client_id, client_secret
                 )
@@ -327,6 +353,9 @@ def _run_setup_server() -> None:
                     # Persist enforced scope so other steps can reuse it.
                     "infisical_org_id": REQUIRED_INFISICAL_ORG_ID,
                     "infisical_project_id": REQUIRED_INFISICAL_PROJECT_ID,
+                    # Store display names for UI
+                    "infisical_org_name": org_name or "",
+                    "infisical_project_name": project_name or "",
                     "infisical_environment": DEFAULT_INFISICAL_ENVIRONMENT,
                     "infisical_secret_path": DEFAULT_INFISICAL_SECRET_PATH,
                 }

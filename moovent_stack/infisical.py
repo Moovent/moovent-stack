@@ -248,6 +248,57 @@ def _fetch_infisical_access(
         return None, f"request_failed:{exc.__class__.__name__}"
 
 
+def _fetch_project_details(
+    host: str, token: str, project_id: str
+) -> tuple[Optional[str], Optional[str]]:
+    """
+    Fetch project and organization names from Infisical API.
+
+    Returns:
+    - (project_name, org_name) on success
+    - (None, None) on failure
+    """
+    url = f"{host}/api/v2/workspace/{project_id}"
+    req = Request(url, method="GET")
+    req.add_header("Authorization", f"Bearer {token}")
+    req.add_header("Accept", "application/json")
+
+    try:
+        with urlopen(req, timeout=ACCESS_REQUEST_TIMEOUT_S) as resp:
+            raw = resp.read().decode("utf-8").strip()
+            data = json.loads(raw) if raw else {}
+            workspace = data.get("workspace", data)
+            if not isinstance(workspace, dict):
+                return None, None
+            project_name = str(workspace.get("name") or "").strip() or None
+            # Org info may be nested under "organization"
+            org = workspace.get("organization") or workspace.get("org") or {}
+            if isinstance(org, dict):
+                org_name = str(org.get("name") or "").strip() or None
+            else:
+                org_name = None
+            return project_name, org_name
+    except Exception:
+        return None, None
+
+
+def _fetch_scope_display_names(
+    host: str, client_id: str, client_secret: str
+) -> tuple[Optional[str], Optional[str]]:
+    """
+    Fetch human-readable project and org names for display in setup UI.
+
+    Returns:
+    - (project_name, org_name) on success
+    - (None, None) on failure (will fall back to UUIDs in UI)
+    """
+    token = _infisical_login(host, client_id, client_secret)
+    if not token:
+        return None, None
+    project_id, _, _ = _resolve_infisical_scope()
+    return _fetch_project_details(host, token, project_id)
+
+
 def _fetch_github_oauth_from_infisical(
     host: str, client_id: str, client_secret: str
 ) -> tuple[Optional[str], Optional[str]]:

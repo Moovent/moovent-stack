@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.1
+- UX: display human-readable org and project names in setup Step 1 (fetched from Infisical API) instead of UUIDs.
+
 ## 0.4.0
 - Refactor: split monolithic `__main__.py` into focused modules (`config`, `storage`, `infisical`, `github`, `workspace`, `runner`, `access`, `app`) and a `setup/` subpackage for improved maintainability.
 - Tests: update unit tests to target refactored modules directly.
