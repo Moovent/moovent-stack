@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.12
+- Change: pass Infisical "secret zero" to the dev stack at runtime (no longer written to `.env`).
+- Change: keep `mqtt_dashboard_watch/.env` non-sensitive by only writing scope config.
+
 ## 0.3.11
 - UX: redesigned Step 3 with card-based repo selection (toggle on/off instead of text inputs).
 - UX: repos are now optional - user can choose which to install via toggles.

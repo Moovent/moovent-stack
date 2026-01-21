@@ -42,6 +42,10 @@ Workspace requirements:
 - `mqtt_dashboard_watch/` repo folder
 - `dashboard/` repo folder
 
+Runtime env behavior:
+- Infisical client credentials are injected at runtime by `moovent-stack`.
+- `mqtt_dashboard_watch/.env` stays non-sensitive (no `INFISICAL_CLIENT_ID/SECRET` on disk).
+
 ## Access control (Infisical Universal Auth)
 
 On every run, the CLI authenticates using **Infisical Universal Auth** (cached with TTL).

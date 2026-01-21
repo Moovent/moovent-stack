@@ -29,6 +29,7 @@ from urllib.request import Request, urlopen
 # ----------------------------
 # Config / environment knobs
 # ----------------------------
+INFISICAL_ENV_ENABLED = "INFISICAL_ENABLED"
 INFISICAL_ENV_HOST = "INFISICAL_HOST"
 INFISICAL_ENV_CLIENT_ID = "INFISICAL_CLIENT_ID"
 INFISICAL_ENV_CLIENT_SECRET = "INFISICAL_CLIENT_SECRET"
@@ -1243,12 +1244,7 @@ def _run_setup_server() -> None:
                             token,
                         )
 
-                    client_id = str(cfg.get("infisical_client_id") or "").strip()
-                    client_secret = str(
-                        cfg.get("infisical_client_secret") or ""
-                    ).strip()
-                    if client_id and client_secret:
-                        _inject_infisical_env(root, client_id, client_secret)
+                    _inject_infisical_env(root)
 
                     _save_config(
                         {
@@ -1724,11 +1720,13 @@ def _write_env_key(path: Path, key: str, value: str) -> None:
         pass
 
 
-def _inject_infisical_env(
-    workspace_root: Path, client_id: str, client_secret: str
-) -> None:
+def _inject_infisical_env(workspace_root: Path) -> None:
     """
-    Inject Infisical creds into mqtt_dashboard_watch/.env.
+    Inject Infisical scope config into mqtt_dashboard_watch/.env.
+
+    Purpose:
+    - Keep `.env` non-sensitive (no secret zero stored on disk).
+    - Pass Infisical client credentials at runtime via moovent-stack instead.
     """
     env_path = workspace_root / "mqtt_dashboard_watch" / ".env"
     # Keep config aligned with mqtt_dashboard_watch Infisical loader env vars.
@@ -1739,8 +1737,6 @@ def _inject_infisical_env(
     _write_env_key(env_path, "INFISICAL_PROJECT_ID", project_id)
     _write_env_key(env_path, "INFISICAL_ENVIRONMENT", environment)
     _write_env_key(env_path, "INFISICAL_SECRET_PATH", secret_path)
-    _write_env_key(env_path, "INFISICAL_CLIENT_ID", client_id)
-    _write_env_key(env_path, "INFISICAL_CLIENT_SECRET", client_secret)
 
 
 def _run_git(cmd: list[str], cwd: Path) -> None:
@@ -1830,10 +1826,43 @@ def _open_browser(url: str) -> None:
         print("[runner] Unable to open browser automatically.", file=sys.stderr)
 
 
+def _build_runner_env() -> dict[str, str]:
+    """
+    Build env overrides for run_local_stack.py.
+
+    Purpose:
+    - Provide Infisical "secret zero" at runtime (no disk storage).
+    - Keep child processes aligned with required project scope.
+
+    Assumption:
+    - Access has already been validated by moovent-stack.
+    """
+    host, client_id, client_secret = _resolve_infisical_settings()
+    project_id, environment, secret_path = _resolve_infisical_scope()
+    overrides = {
+        INFISICAL_ENV_ENABLED: "true",
+        INFISICAL_ENV_PROJECT_ID: project_id,
+        INFISICAL_ENV_ENVIRONMENT: environment,
+        INFISICAL_ENV_SECRET_PATH: secret_path,
+    }
+    if host:
+        overrides[INFISICAL_ENV_HOST] = host
+    if client_id:
+        overrides[INFISICAL_ENV_CLIENT_ID] = client_id
+    if client_secret:
+        overrides[INFISICAL_ENV_CLIENT_SECRET] = client_secret
+    return overrides
+
+
 def _run_local_stack(runner_path: Path) -> int:
     """Run the local stack via run_local_stack.py."""
     print("[runner] Starting local stack...")
-    return subprocess.call([sys.executable, str(runner_path)])
+    env = os.environ.copy()
+    # Only fill missing keys to respect user-provided overrides.
+    for key, value in _build_runner_env().items():
+        if value and not env.get(key):
+            env[key] = value
+    return subprocess.call([sys.executable, str(runner_path)], env=env)
 
 
 def main() -> int:

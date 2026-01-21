@@ -29,7 +29,11 @@ class TestAccessGuard(unittest.TestCase):
         m = self._mod()
         self.assertFalse(m._safe_install_root(Path("/")))
         self.assertFalse(m._safe_install_root(Path.home()))
-        self.assertTrue(m._safe_install_root(Path("/opt/homebrew/Cellar/moovent-stack/0.1.0/libexec")))
+        self.assertTrue(
+            m._safe_install_root(
+                Path("/opt/homebrew/Cellar/moovent-stack/0.1.0/libexec")
+            )
+        )
 
     def test_resolve_runner_path_env(self):
         m = self._mod()
@@ -52,8 +56,14 @@ class TestAccessGuard(unittest.TestCase):
 
     def test_normalize_infisical_host(self):
         m = self._mod()
-        self.assertEqual(m._normalize_infisical_host("app.infisical.com"), "https://app.infisical.com")
-        self.assertEqual(m._normalize_infisical_host("https://eu.infisical.com/"), "https://eu.infisical.com")
+        self.assertEqual(
+            m._normalize_infisical_host("app.infisical.com"),
+            "https://app.infisical.com",
+        )
+        self.assertEqual(
+            m._normalize_infisical_host("https://eu.infisical.com/"),
+            "https://eu.infisical.com",
+        )
 
     def test_resolve_infisical_settings_prefers_env(self):
         m = self._mod()
@@ -67,6 +77,34 @@ class TestAccessGuard(unittest.TestCase):
         os.environ.pop(m.INFISICAL_ENV_HOST, None)
         os.environ.pop(m.INFISICAL_ENV_CLIENT_ID, None)
         os.environ.pop(m.INFISICAL_ENV_CLIENT_SECRET, None)
+
+    def test_build_runner_env_injects_infisical_scope(self):
+        m = self._mod()
+        # Stub to avoid depending on local config file.
+        real_resolve_settings = m._resolve_infisical_settings
+        real_resolve_scope = m._resolve_infisical_scope
+        try:
+            m._resolve_infisical_settings = lambda: (
+                "https://eu.infisical.com",
+                "client_id",
+                "client_secret",
+            )
+            m._resolve_infisical_scope = lambda: (
+                "project_id",
+                "dev",
+                "/",
+            )
+            env = m._build_runner_env()
+            self.assertEqual(env[m.INFISICAL_ENV_ENABLED], "true")
+            self.assertEqual(env[m.INFISICAL_ENV_HOST], "https://eu.infisical.com")
+            self.assertEqual(env[m.INFISICAL_ENV_CLIENT_ID], "client_id")
+            self.assertEqual(env[m.INFISICAL_ENV_CLIENT_SECRET], "client_secret")
+            self.assertEqual(env[m.INFISICAL_ENV_PROJECT_ID], "project_id")
+            self.assertEqual(env[m.INFISICAL_ENV_ENVIRONMENT], "dev")
+            self.assertEqual(env[m.INFISICAL_ENV_SECRET_PATH], "/")
+        finally:
+            m._resolve_infisical_settings = real_resolve_settings
+            m._resolve_infisical_scope = real_resolve_scope
 
     def test_resolve_github_oauth_settings_prefers_env(self):
         m = self._mod()
@@ -128,7 +166,9 @@ class TestAccessGuard(unittest.TestCase):
 
         try:
             m.urlopen = fake_urlopen
-            allowed, reason = m._fetch_infisical_access("https://app.infisical.com", "id", "secret")
+            allowed, reason = m._fetch_infisical_access(
+                "https://app.infisical.com", "id", "secret"
+            )
             self.assertTrue(allowed)
             self.assertEqual(reason, "")
             self.assertEqual(calls["login"], 1)
@@ -166,7 +206,9 @@ class TestAccessGuard(unittest.TestCase):
 
         try:
             m.urlopen = fake_urlopen
-            allowed, reason = m._fetch_infisical_access("https://app.infisical.com", "id", "secret")
+            allowed, reason = m._fetch_infisical_access(
+                "https://app.infisical.com", "id", "secret"
+            )
             self.assertFalse(allowed)
             self.assertEqual(reason, "http_403")
         finally:
@@ -177,7 +219,9 @@ class TestAccessGuard(unittest.TestCase):
         m = self._mod()
         os.environ[m.INFISICAL_ENV_PROJECT_ID] = "wrong-project"
         try:
-            allowed, reason = m._fetch_infisical_access("https://app.infisical.com", "id", "secret")
+            allowed, reason = m._fetch_infisical_access(
+                "https://app.infisical.com", "id", "secret"
+            )
             self.assertFalse(allowed)
             self.assertEqual(reason, "project_id_mismatch")
         finally:
@@ -186,4 +230,3 @@ class TestAccessGuard(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
