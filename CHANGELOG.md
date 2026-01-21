@@ -1,8 +1,15 @@
 # Changelog
 
+## 0.4.0
+- Refactor: split monolithic `__main__.py` into focused modules (`config`, `storage`, `infisical`, `github`, `workspace`, `runner`, `access`, `app`) and a `setup/` subpackage for improved maintainability.
+- Tests: update unit tests to target refactored modules directly.
+- Docs: update `help/DEVELOPMENT.md` with new module layout.
+
 ## 0.3.12
 - Change: pass Infisical "secret zero" to the dev stack at runtime (no longer written to `.env`).
 - Change: keep `mqtt_dashboard_watch/.env` non-sensitive by only writing scope config.
+- Docs: add `help/` documentation set (getting started, configuration, troubleshooting, security, development).
+- UX: setup UI "Need help?" link now points to `moovent-stack` docs.
 
 ## 0.3.11
 - UX: redesigned Step 3 with card-based repo selection (toggle on/off instead of text inputs).

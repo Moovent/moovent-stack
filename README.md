@@ -1,12 +1,12 @@
-# Moovent Stack (Internal)
+# Moovent Stack
 
-This repository contains the **Moovent developer stack launcher**.
+This repository contains the **Moovent local dev stack launcher** (`moovent-stack`).
 
-Goal: the easiest possible onboarding for non-technical users:
+Goals:
 - Install with **one command** via Homebrew
 - Run with **one command** (`moovent-stack`)
-- Uses local `.env` files (local-only mode)
-- Access is controlled via Infisical Universal Auth
+- Guided setup (Infisical → GitHub → repo/branch selection)
+- **Access-controlled** via Infisical Universal Auth
 
 ## Install (Homebrew)
 
@@ -14,22 +14,61 @@ Goal: the easiest possible onboarding for non-technical users:
 brew install moovent/tap/moovent-stack
 ```
 
-## Run
+## Run (recommended)
+
+```bash
+moovent-stack
+```
 
 If Infisical credentials or workspace are not configured, `moovent-stack` opens a setup page automatically.
-You can also set it manually:
+
+## Documentation
+
+- **Help index**: `help/README.md`
+- **Getting started**: `help/GETTING_STARTED.md`
+- **Configuration (env vars, config files)**: `help/CONFIGURATION.md`
+- **Troubleshooting**: `help/TROUBLESHOOTING.md`
+- **Security model**: `help/SECURITY.md`
+- **Development (contributors)**: `help/DEVELOPMENT.md`
+
+## What moovent-stack does
+
+- **Step 1 (Infisical)**: validates your Machine Identity can access the required Moovent project.
+- **Step 2 (Workspace + GitHub)**: picks a workspace install path and authorizes GitHub.
+  - GitHub OAuth app credentials are typically fetched from Infisical (admin-provisioned).
+- **Step 3 (Repo + branch)**: clones selected repos/branches into your workspace and starts the stack by running `run_local_stack.py`.
+
+## Secrets model (dev vs prod)
+
+### Local development (dev)
+
+- `moovent-stack` **does not write** `INFISICAL_CLIENT_ID` or `INFISICAL_CLIENT_SECRET` into any `.env` file.
+- It injects Infisical credentials into the environment **at runtime** when launching `run_local_stack.py`.
+- It writes **only non-sensitive scope config** (host/project/environment/path) to:
+  - `<workspace>/mqtt_dashboard_watch/.env`
+
+### Production (Render)
+
+- Provide `INFISICAL_CLIENT_ID` and `INFISICAL_CLIENT_SECRET` as **Render environment variables**.
+
+## Run (manual / non-interactive)
+
+You can run without the setup UI by providing required values via environment variables.
+See `help/CONFIGURATION.md` for the full reference.
 
 ```bash
 export INFISICAL_CLIENT_ID="YOUR_CLIENT_ID"
 export INFISICAL_CLIENT_SECRET="YOUR_CLIENT_SECRET"
-export INFISICAL_HOST="https://eu.infisical.com" # optional override (default)
-export INFISICAL_PROJECT_ID="b33db90d-cc5b-464e-b58c-a09e7328e83d" # required (Moovent org project)
-export INFISICAL_ENVIRONMENT="dev" # default: dev
-export INFISICAL_SECRET_PATH="/" # default: /
-export MOOVENT_GITHUB_CLIENT_ID="YOUR_GITHUB_OAUTH_CLIENT_ID"
-export MOOVENT_GITHUB_CLIENT_SECRET="YOUR_GITHUB_OAUTH_CLIENT_SECRET"
-export MOOVENT_SETUP_PORT=9010 # should match GitHub OAuth callback
-export MOOVENT_WORKSPACE_ROOT="/Users/you/Projects/moovent"  # contains run_local_stack.py
+export INFISICAL_HOST="https://eu.infisical.com"   # optional override (default)
+export INFISICAL_ENVIRONMENT="dev"                 # default: dev
+export INFISICAL_SECRET_PATH="/"                   # default: /
+
+# Workspace path (contains run_local_stack.py and repo folders)
+export MOOVENT_WORKSPACE_ROOT="$HOME/Documents/Moovent-stack"
+
+# Optional: disable setup UI and fail fast if anything is missing
+export MOOVENT_SETUP_NONINTERACTIVE=1
+
 moovent-stack
 ```
 
@@ -51,25 +90,22 @@ Runtime env behavior:
 On every run, the CLI authenticates using **Infisical Universal Auth** (cached with TTL).
 If credentials are valid **and** have access to the required Moovent project, access is allowed.
 
-Env vars:
+Env vars (summary — full reference in `help/CONFIGURATION.md`):
 
 ```bash
 # Required:
 INFISICAL_CLIENT_ID=...
 INFISICAL_CLIENT_SECRET=...
-# Required (scope):
-INFISICAL_PROJECT_ID=b33db90d-cc5b-464e-b58c-a09e7328e83d
-INFISICAL_ENVIRONMENT=dev
-INFISICAL_SECRET_PATH=/
+
+# Optional:
+INFISICAL_HOST=...                # default: https://eu.infisical.com
+INFISICAL_ENVIRONMENT=dev         # default: dev
+INFISICAL_SECRET_PATH=/           # default: /
+
 # Optional (default: https://eu.infisical.com, US: https://app.infisical.com):
-INFISICAL_HOST=...
-# GitHub OAuth (required for repo/branch setup):
-MOOVENT_GITHUB_CLIENT_ID=...
-MOOVENT_GITHUB_CLIENT_SECRET=...
 MOOVENT_ACCESS_TTL_S=86400
 MOOVENT_ACCESS_CACHE_PATH=~/.moovent_stack_access.json
 MOOVENT_ACCESS_SELF_CLEAN=1
-MOOVENT_SETUP_PORT=9010
 # If set, disable setup page and fail fast when missing config:
 MOOVENT_SETUP_NONINTERACTIVE=1
 # Optional: override runner path directly

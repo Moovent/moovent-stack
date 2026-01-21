@@ -32,7 +32,9 @@ def main() -> int:
     name = f"moovent-stack-{version}"
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output", type=Path, default=repo_root / "dist" / f"{name}.tar.gz")
+    parser.add_argument(
+        "--output", type=Path, default=repo_root / "dist" / f"{name}.tar.gz"
+    )
     args = parser.parse_args()
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -56,4 +58,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
