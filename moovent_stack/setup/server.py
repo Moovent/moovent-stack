@@ -37,7 +37,6 @@ from ..infisical import (
 from ..storage import _load_config, _save_config
 from ..workspace import _clone_or_update_repo, _inject_infisical_env
 from .templates import (
-    _setup_step1_confirm_html,
     _setup_step1_html,
     _setup_step2_html,
     _setup_step3_html,
@@ -94,15 +93,7 @@ def _run_setup_server() -> None:
             if self.path == "/" or self.path.startswith("/?"):
                 step = self._next_step()
                 if step == 1:
-                    # Use cached display names if available
-                    org_name = str(cfg.get("infisical_org_name") or "").strip() or None
-                    project_name = (
-                        str(cfg.get("infisical_project_name") or "").strip() or None
-                    )
-                    self._send(
-                        200,
-                        _setup_step1_html(org_name=org_name, project_name=project_name),
-                    )
+                    self._send(200, _setup_step1_html())
                     return
                 if step == 2:
                     # Try to fetch GitHub OAuth from Infisical if missing
@@ -110,12 +101,25 @@ def _run_setup_server() -> None:
                     cfg = _load_config()  # reload after potential update
                     github_login = str(cfg.get("github_login") or "").strip() or None
                     oauth_ready = all(_resolve_github_oauth_settings())
+                    # Always display org name as "Moovent" (manual)
+                    org_name = "Moovent"
+                    project_name = (
+                        str(cfg.get("infisical_project_name") or "").strip()
+                        or REQUIRED_INFISICAL_PROJECT_ID
+                    )
+                    env_name = (
+                        str(cfg.get("infisical_environment") or "").strip()
+                        or DEFAULT_INFISICAL_ENVIRONMENT
+                    )
                     self._send(
                         200,
                         _setup_step2_html(
                             github_login,
                             workspace_root=str(cfg.get("workspace_root") or "").strip(),
                             oauth_ready=oauth_ready,
+                            infisical_org_name=org_name,
+                            infisical_project_name=project_name,
+                            infisical_environment=env_name,
                         ),
                     )
                     return
@@ -228,15 +232,7 @@ def _run_setup_server() -> None:
                 return
 
             if self.path.startswith("/step1"):
-                # Use cached display names if available
-                org_name = str(cfg.get("infisical_org_name") or "").strip() or None
-                project_name = (
-                    str(cfg.get("infisical_project_name") or "").strip() or None
-                )
-                self._send(
-                    200,
-                    _setup_step1_html(org_name=org_name, project_name=project_name),
-                )
+                self._send(200, _setup_step1_html())
                 return
 
             if self.path.startswith("/step2"):
@@ -245,12 +241,24 @@ def _run_setup_server() -> None:
                 cfg = _load_config()  # reload after potential update
                 github_login = str(cfg.get("github_login") or "").strip() or None
                 oauth_ready = all(_resolve_github_oauth_settings())
+                org_name = "Moovent"
+                project_name = (
+                    str(cfg.get("infisical_project_name") or "").strip()
+                    or REQUIRED_INFISICAL_PROJECT_ID
+                )
+                env_name = (
+                    str(cfg.get("infisical_environment") or "").strip()
+                    or DEFAULT_INFISICAL_ENVIRONMENT
+                )
                 self._send(
                     200,
                     _setup_step2_html(
                         github_login,
                         workspace_root=str(cfg.get("workspace_root") or "").strip(),
                         oauth_ready=oauth_ready,
+                        infisical_org_name=org_name,
+                        infisical_project_name=project_name,
+                        infisical_environment=env_name,
                     ),
                 )
                 return
@@ -323,24 +331,18 @@ def _run_setup_server() -> None:
                     host, client_id, client_secret
                 )
                 if not allowed:
-                    # Try to fetch display names for nicer error page
-                    project_name, org_name = _fetch_scope_display_names(
-                        host, client_id, client_secret
-                    )
                     self._send(
                         200,
                         _setup_step1_html(
                             "Infisical access check failed. "
                             f"Reason: {reason}. "
                             "Ensure your Machine Identity has access to the required project.",
-                            org_name=org_name,
-                            project_name=project_name,
                         ),
                     )
                     return
 
                 # Fetch display names and GitHub OAuth creds from Infisical
-                project_name, org_name = _fetch_scope_display_names(
+                project_name, _org_name = _fetch_scope_display_names(
                     host, client_id, client_secret
                 )
                 github_id, github_secret = _fetch_github_oauth_from_infisical(
@@ -355,7 +357,7 @@ def _run_setup_server() -> None:
                     "infisical_org_id": REQUIRED_INFISICAL_ORG_ID,
                     "infisical_project_id": REQUIRED_INFISICAL_PROJECT_ID,
                     # Store display names for UI
-                    "infisical_org_name": org_name or "",
+                    "infisical_org_name": "Moovent",
                     "infisical_project_name": project_name or "",
                     "infisical_environment": DEFAULT_INFISICAL_ENVIRONMENT,
                     "infisical_secret_path": DEFAULT_INFISICAL_SECRET_PATH,
@@ -367,16 +369,9 @@ def _run_setup_server() -> None:
                     config_data["github_client_secret"] = github_secret
 
                 _save_config(config_data)
-
-                # Show resolved names immediately on Step 1 confirmation
-                org_display = org_name or REQUIRED_INFISICAL_ORG_ID
-                project_display = project_name or REQUIRED_INFISICAL_PROJECT_ID
-                self._send(
-                    200,
-                    _setup_step1_confirm_html(
-                        org_name=org_display, project_name=project_display
-                    ),
-                )
+                self.send_response(302)
+                self.send_header("Location", "/step2")
+                self.end_headers()
                 return
 
             if self.path == "/save-step2":

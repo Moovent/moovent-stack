@@ -16,11 +16,7 @@ from .assets import (
     MOOVENT_LOGO_BASE64,
     MOOVENT_TEAL,
 )
-from ..config import (
-    REQUIRED_INFISICAL_ORG_ID,
-    REQUIRED_INFISICAL_PROJECT_ID,
-    DEFAULT_INFISICAL_ENVIRONMENT,
-)
+from ..config import DEFAULT_INFISICAL_ENVIRONMENT, REQUIRED_INFISICAL_PROJECT_ID
 
 
 def _setup_steps_html(current_step: int) -> str:
@@ -170,15 +166,8 @@ def _setup_shell(
 """.strip()
 
 
-def _setup_step1_html(
-    error_text: str = "",
-    org_name: Optional[str] = None,
-    project_name: Optional[str] = None,
-) -> str:
+def _setup_step1_html(error_text: str = "") -> str:
     """Step 1: Infisical credentials only."""
-    # Use human-readable names if available, otherwise fall back to UUIDs
-    org_display = org_name or REQUIRED_INFISICAL_ORG_ID
-    project_display = project_name or REQUIRED_INFISICAL_PROJECT_ID
 
     content = f"""
     <form class="space-y-5" method="POST" action="/save-step1">
@@ -212,18 +201,6 @@ def _setup_step1_html(
         </p>
       </div>
 
-      <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg">
-        <p class="text-xs text-gray-500 mb-1">Access scope</p>
-        <p class="text-sm text-gray-800">
-          Org: <span class="font-semibold">{org_display}</span><br/>
-          Project: <span class="font-semibold">{project_display}</span><br/>
-          Env: <span class="font-mono text-xs">{DEFAULT_INFISICAL_ENVIRONMENT}</span>
-        </p>
-        <p class="mt-2 text-xs text-gray-500">
-          We verify your credentials can access this project before continuing.
-        </p>
-      </div>
-
       <div class="pt-2">
         <button
           type="submit"
@@ -246,57 +223,39 @@ def _setup_step1_html(
     )
 
 
-def _setup_step1_confirm_html(org_name: str, project_name: str) -> str:
-    """Step 1: Confirmation page showing resolved names."""
-    content = f"""
-    <div class="space-y-4">
-      <div class="p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
-        <p class="text-sm text-emerald-800 font-medium">Access verified</p>
-        <p class="mt-1 text-xs text-emerald-700">
-          We resolved the org and project names from Infisical.
-        </p>
-      </div>
-
-      <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg">
-        <p class="text-xs text-gray-500 mb-1">Access scope</p>
-        <p class="text-sm text-gray-800">
-          Org: <span class="font-semibold">{org_name}</span><br/>
-          Project: <span class="font-semibold">{project_name}</span><br/>
-          Env: <span class="font-mono text-xs">{DEFAULT_INFISICAL_ENVIRONMENT}</span>
-        </p>
-      </div>
-
-      <div class="pt-2">
-        <a
-          href="/step2"
-          class="py-3 px-4 w-full inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2"
-          style="background-color: {MOOVENT_ACCENT}; --tw-ring-color: {MOOVENT_ACCENT};"
-        >
-          Continue to Step 2
-          <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"/></svg>
-        </a>
-      </div>
-    </div>
-    """
-    return _setup_shell(
-        "Infisical access",
-        "Sign in with your Infisical Universal Auth credentials",
-        1,
-        3,
-        content,
-    )
-
-
 def _setup_step2_html(
     github_login: Optional[str],
     error_text: str = "",
     workspace_root: str = "",
     oauth_ready: bool = True,
+    infisical_org_name: Optional[str] = None,
+    infisical_project_name: Optional[str] = None,
+    infisical_environment: Optional[str] = None,
 ) -> str:
     """Step 2: GitHub OAuth + install path."""
     # Use default if not provided
     if not workspace_root:
         workspace_root = _default_workspace_path()
+
+    env_display = (infisical_environment or DEFAULT_INFISICAL_ENVIRONMENT).strip()
+    org_display = (infisical_org_name or "").strip()
+    project_display = (infisical_project_name or REQUIRED_INFISICAL_PROJECT_ID).strip()
+
+    scope_block = ""
+    if org_display:
+        scope_block = f"""
+      <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+        <p class="text-xs text-gray-500 mb-1">Infisical access scope (validated)</p>
+        <p class="text-sm text-gray-800">
+          Org: <span class="font-semibold">{org_display}</span><br/>
+          Project: <span class="font-semibold">{project_display}</span><br/>
+          Env: <span class="font-mono text-xs">{env_display}</span>
+        </p>
+        <p class="mt-2 text-xs text-gray-500">
+          Your Infisical credentials were verified in Step 1.
+        </p>
+      </div>
+        """
 
     status = (
         f'<span class="inline-flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md">Connected as {github_login}</span>'
@@ -311,6 +270,8 @@ def _setup_step2_html(
 
     content = f"""
     <form class="space-y-5" method="POST" action="/save-step2">
+      {scope_block}
+
       <div>
         <label class="block mb-2 text-sm font-medium text-gray-800">
           Workspace Install Path <span class="text-red-500">*</span>
