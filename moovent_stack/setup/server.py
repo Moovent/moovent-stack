@@ -4,8 +4,10 @@ Local HTTP setup server.
 
 from __future__ import annotations
 
+import json
 import secrets
 import sys
+import threading
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -41,6 +43,7 @@ from ..workspace import (
     _default_workspace_path,
 )
 from .templates import (
+    _installing_page_html,
     _setup_step1_html,
     _setup_step2_html,
     _setup_step3_html,
@@ -67,6 +70,74 @@ def _run_setup_server() -> None:
 
     state = _SetupState()
 
+    class _InstallState:
+        """
+        Shared install progress state.
+
+        Concurrency:
+        - Updated by a background thread doing git clone/pull.
+        - Read by HTTP handler requests via `/install-status`.
+        """
+
+        def __init__(self) -> None:
+            self._lock = threading.Lock()
+            self.started = False
+            self.completed = False
+            self.progress_pct = 0
+            self.title = "Installing…"
+            self.message = "Preparing your workspace…"
+            self.detail = ""
+            self.error = ""
+            self.dashboard_url = "http://localhost:5173"
+
+        def reset(self, dashboard_url: str) -> None:
+            with self._lock:
+                self.started = True
+                self.completed = False
+                self.progress_pct = 0
+                self.title = "Installing…"
+                self.message = "Preparing your workspace…"
+                self.detail = ""
+                self.error = ""
+                self.dashboard_url = dashboard_url
+
+        def update(
+            self, progress_pct: int, title: str, message: str, detail: str = ""
+        ) -> None:
+            with self._lock:
+                self.progress_pct = max(0, min(100, int(progress_pct)))
+                self.title = title
+                self.message = message
+                self.detail = detail
+
+        def fail(self, error: str) -> None:
+            with self._lock:
+                self.error = error
+                self.completed = False
+
+        def finish(self, message: str = "Done.") -> None:
+            with self._lock:
+                self.progress_pct = 100
+                self.title = "Done"
+                self.message = message
+                self.detail = ""
+                self.completed = True
+
+        def snapshot(self) -> dict[str, object]:
+            with self._lock:
+                return {
+                    "started": self.started,
+                    "completed": self.completed,
+                    "progress_pct": self.progress_pct,
+                    "title": self.title,
+                    "message": self.message,
+                    "detail": self.detail,
+                    "error": self.error,
+                    "dashboard_url": self.dashboard_url,
+                }
+
+    install = _InstallState()
+
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args) -> None:
             return
@@ -78,6 +149,9 @@ def _run_setup_server() -> None:
             self.send_header("Content-Length", str(len(raw)))
             self.end_headers()
             self.wfile.write(raw)
+
+        def _send_json(self, code: int, payload: dict[str, object]) -> None:
+            self._send(code, json.dumps(payload), "application/json")
 
         def _next_step(self) -> int:
             cfg = _load_config()
@@ -168,6 +242,23 @@ def _run_setup_server() -> None:
                     return
 
                 self._send(200, _setup_step3_html(mqtt_branches, dash_branches))
+                return
+
+            if self.path.startswith("/installing"):
+                snap = install.snapshot()
+                self._send(200, _installing_page_html(str(snap.get("dashboard_url") or "")))
+                return
+
+            if self.path.startswith("/install-status"):
+                self._send_json(200, install.snapshot())
+                return
+
+            if self.path.startswith("/done"):
+                snap = install.snapshot()
+                state.done = True
+                self._send(
+                    200, _success_page_html(str(snap.get("dashboard_url") or ""))
+                )
                 return
 
             if self.path.startswith("/oauth/start"):
@@ -429,42 +520,112 @@ def _run_setup_server() -> None:
                     return
 
                 try:
-                    root = Path(workspace_root).expanduser()
-
-                    # Only clone selected repos
-                    if install_mqtt:
-                        _clone_or_update_repo(
-                            "Moovent",
-                            "mqtt_dashboard_watch",
-                            mqtt_branch,
-                            root / "mqtt_dashboard_watch",
-                            token,
-                        )
-
-                    if install_dashboard:
-                        _clone_or_update_repo(
-                            "Moovent",
-                            "dashboard",
-                            dashboard_branch,
-                            root / "dashboard",
-                            token,
-                        )
-
-                    _inject_infisical_env(root)
-
-                    _save_config(
-                        {
-                            "mqtt_branch": mqtt_branch if install_mqtt else "",
-                            "dashboard_branch": (
-                                dashboard_branch if install_dashboard else ""
-                            ),
-                            "install_mqtt": install_mqtt,
-                            "install_dashboard": install_dashboard,
-                            "setup_complete": True,
-                        }
+                    # Choose which UI to open at the end.
+                    # Assumption:
+                    # - `dashboard` repo runs at http://localhost:5173 (vite).
+                    # - mqtt admin dashboard runs at http://localhost:3000 (vite).
+                    dashboard_url = (
+                        "http://localhost:5173"
+                        if install_dashboard
+                        else "http://localhost:3000"
                     )
-                    state.done = True
-                    self._send(200, _success_page_html())
+
+                    # If an install is already running, just show the installing page.
+                    snap = install.snapshot()
+                    if snap.get("started") and not snap.get("completed") and not snap.get(
+                        "error"
+                    ):
+                        self.send_response(302)
+                        self.send_header("Location", "/installing")
+                        self.end_headers()
+                        return
+
+                    install.reset(dashboard_url)
+
+                    def _worker() -> None:
+                        try:
+                            root = Path(workspace_root).expanduser()
+                            install.update(
+                                5,
+                                "Preparing",
+                                "Creating workspace directory…",
+                                str(root),
+                            )
+                            root.mkdir(parents=True, exist_ok=True)
+
+                            # Only clone selected repos.
+                            if install_mqtt:
+                                install.update(
+                                    10,
+                                    "Downloading",
+                                    "Cloning mqtt_dashboard_watch…",
+                                    f"branch: {mqtt_branch}",
+                                )
+                                _clone_or_update_repo(
+                                    "Moovent",
+                                    "mqtt_dashboard_watch",
+                                    mqtt_branch,
+                                    root / "mqtt_dashboard_watch",
+                                    token,
+                                )
+                                install.update(
+                                    60,
+                                    "Downloading",
+                                    "mqtt_dashboard_watch ready.",
+                                    "",
+                                )
+
+                            if install_dashboard:
+                                install.update(
+                                    65,
+                                    "Downloading",
+                                    "Cloning dashboard…",
+                                    f"branch: {dashboard_branch}",
+                                )
+                                _clone_or_update_repo(
+                                    "Moovent",
+                                    "dashboard",
+                                    dashboard_branch,
+                                    root / "dashboard",
+                                    token,
+                                )
+                                install.update(90, "Downloading", "dashboard ready.", "")
+
+                            install.update(
+                                92,
+                                "Configuring",
+                                "Injecting Infisical scope into mqtt_dashboard_watch/.env…",
+                                "",
+                            )
+                            _inject_infisical_env(root)
+
+                            install.update(
+                                96,
+                                "Finalizing",
+                                "Saving setup settings…",
+                                "",
+                            )
+                            _save_config(
+                                {
+                                    "mqtt_branch": mqtt_branch if install_mqtt else "",
+                                    "dashboard_branch": (
+                                        dashboard_branch if install_dashboard else ""
+                                    ),
+                                    "install_mqtt": install_mqtt,
+                                    "install_dashboard": install_dashboard,
+                                    "setup_complete": True,
+                                }
+                            )
+
+                            install.finish("Starting Moovent Stack…")
+                        except Exception as exc:
+                            install.fail(f"Download failed: {exc}")
+
+                    threading.Thread(target=_worker, daemon=True).start()
+
+                    self.send_response(302)
+                    self.send_header("Location", "/installing")
+                    self.end_headers()
                 except Exception as exc:
                     self._send(
                         200, _setup_step3_html([], [], f"Download failed: {exc}")

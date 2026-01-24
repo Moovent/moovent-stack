@@ -488,7 +488,102 @@ def _setup_step3_html(
     )
 
 
-def _success_page_html() -> str:
+def _installing_page_html(dashboard_url: str) -> str:
+    """
+    Render the installing page (with backend-polled progress).
+
+    Notes:
+    - Clone/fetch progress from git is not easily streamable, so we surface
+      step-based progress from the backend thread (best-effort but accurate per-step).
+    - When the backend reports completion, the page navigates to `/done`.
+    """
+    content = f"""
+    <div class="space-y-4">
+      <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+        <div class="flex items-center justify-between gap-3">
+          <p class="text-sm font-medium text-gray-800" id="install-title">Installing…</p>
+          <p class="text-sm font-semibold text-gray-800" id="install-pct">0%</p>
+        </div>
+
+        <div class="mt-3 w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+          <div id="install-bar" class="h-2.5 rounded-full" style="width: 0%; background: linear-gradient(to right, {MOOVENT_ACCENT}, #14b8a6);"></div>
+        </div>
+
+        <p class="mt-3 text-xs text-gray-500" id="install-msg">Preparing your workspace…</p>
+        <p class="mt-1 text-[11px] text-gray-400" id="install-detail"></p>
+      </div>
+
+      <div id="install-error" class="hidden rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"></div>
+      <p class="text-xs text-gray-500">
+        Keep this tab open while we download and configure your repositories.
+      </p>
+    </div>
+
+    <script>
+      const DASHBOARD_URL = {dashboard_url!r};
+
+      function clampPct(v) {{
+        const n = Number(v);
+        if (!Number.isFinite(n)) return 0;
+        return Math.max(0, Math.min(100, n));
+      }}
+
+      function setText(id, text) {{
+        const el = document.getElementById(id);
+        if (el) el.textContent = text || "";
+      }}
+
+      function showError(text) {{
+        const el = document.getElementById("install-error");
+        if (!el) return;
+        el.classList.remove("hidden");
+        el.textContent = text || "Install failed.";
+      }}
+
+      async function poll() {{
+        try {{
+          const res = await fetch("/install-status", {{ cache: "no-store" }});
+          const data = await res.json();
+
+          const pct = clampPct(data.progress_pct);
+          const bar = document.getElementById("install-bar");
+          if (bar) bar.style.width = pct + "%";
+
+          setText("install-title", data.title || "Installing…");
+          setText("install-pct", pct + "%");
+          setText("install-msg", data.message || "");
+          setText("install-detail", data.detail || "");
+
+          if (data.error) {{
+            showError(data.error);
+            return; // stop polling on error
+          }}
+
+          if (data.completed) {{
+            window.location.href = "/done";
+            return;
+          }}
+        }} catch (e) {{
+          // transient failures (e.g. server busy) - keep trying
+        }}
+
+        setTimeout(poll, 500);
+      }}
+
+      poll();
+    </script>
+    """
+    return _setup_shell(
+        "Installing",
+        "Downloading and configuring your workspace",
+        3,
+        3,
+        content,
+        "",
+    )
+
+
+def _success_page_html(dashboard_url: str) -> str:
     """Render the success page after saving config (light mode only)."""
     return f"""
 <!doctype html>
@@ -511,12 +606,17 @@ def _success_page_html() -> str:
         </div>
         <h2 class="mt-4 text-center font-semibold text-lg text-gray-800">You're all set!</h2>
         <p class="mt-2 text-center text-sm text-gray-500">
-          Moovent Stack is starting. You can close this tab.
+          Moovent Stack is starting. Open the dashboard to continue.
         </p>
         <div class="mt-5 flex justify-center">
-          <button type="button" onclick="window.close()" class="py-2.5 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 focus:outline-none focus:bg-gray-50">
-            Close tab
-          </button>
+          <a href="{dashboard_url}" target="_blank" rel="noopener noreferrer"
+            class="py-2.5 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2"
+            style="background-color: {MOOVENT_ACCENT}; --tw-ring-color: {MOOVENT_ACCENT};">
+            Open the Dashboard
+            <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H19.5V12M10.5 18H4.5V12M19.5 6l-7.5 7.5M4.5 18l7.5-7.5"/>
+            </svg>
+          </a>
         </div>
       </div>
     </main>
@@ -528,7 +628,6 @@ def _success_page_html() -> str:
         <span class="text-gray-300">v{__version__}</span>
       </p>
     </footer>
-    <script>setTimeout(() => window.close(), 800);</script>
   </body>
 </html>
 """.strip()

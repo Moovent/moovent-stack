@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.10
+- UX: add install progress page (backend-synced) while repositories are downloading/configuring.
+- UX: success page now uses "Open the Dashboard" instead of closing the tab.
+
 ## 0.4.7
 - Fix: derive org name from workspace API response (org endpoints can be blocked by Cloudflare).
 
