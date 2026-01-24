@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.5
+- Debug: add verbose Infisical name lookup logging when `MOOVENT_INFISICAL_DEBUG=1`.
+
 ## 0.4.4
 - Fix: expand fallback Infisical endpoints for org/workspace name lookups.
 

@@ -15,6 +15,7 @@ from .config import (
     DEFAULT_INFISICAL_ENVIRONMENT,
     DEFAULT_INFISICAL_HOST,
     DEFAULT_INFISICAL_SECRET_PATH,
+    INFISICAL_ENV_DEBUG,
     INFISICAL_ENV_CLIENT_ID,
     INFISICAL_ENV_CLIENT_SECRET,
     INFISICAL_ENV_ENVIRONMENT,
@@ -22,6 +23,7 @@ from .config import (
     INFISICAL_ENV_PROJECT_ID,
     INFISICAL_ENV_SECRET_PATH,
     REQUIRED_INFISICAL_PROJECT_ID,
+    _env_bool,
 )
 from .storage import _load_config, _save_config
 
@@ -248,6 +250,24 @@ def _fetch_infisical_access(
         return None, f"request_failed:{exc.__class__.__name__}"
 
 
+def _debug_enabled() -> bool:
+    return _env_bool(os.environ.get(INFISICAL_ENV_DEBUG))
+
+
+def _debug_log(message: str) -> None:
+    if _debug_enabled():
+        print(f"[infisical] {message}", file=os.sys.stderr)
+
+
+def _safe_response_excerpt(raw: str, limit: int = 400) -> str:
+    if not raw:
+        return ""
+    text = raw.replace("\n", " ").replace("\r", " ").strip()
+    if len(text) <= limit:
+        return text
+    return f"{text[:limit]}…"
+
+
 def _fetch_json_with_fallback(
     host: str, token: str, paths: list[str]
 ) -> Optional[dict]:
@@ -259,12 +279,25 @@ def _fetch_json_with_fallback(
         req.add_header("Accept", "application/json")
         try:
             with urlopen(req, timeout=ACCESS_REQUEST_TIMEOUT_S) as resp:
-                raw = resp.read().decode("utf-8").strip()
+                raw = resp.read().decode("utf-8", errors="replace").strip()
                 data = json.loads(raw) if raw else {}
                 if isinstance(data, dict):
+                    _debug_log(f"GET {url} -> {resp.status}")
                     return data
-        except Exception:
+                _debug_log(f"GET {url} -> {resp.status} (non-dict JSON)")
+        except HTTPError as err:
+            try:
+                body = err.read().decode("utf-8", errors="replace")
+            except Exception:
+                body = ""
+            _debug_log(
+                f"GET {url} -> HTTP {err.code} {err.reason} "
+                f"body='{_safe_response_excerpt(body)}'"
+            )
+        except Exception as exc:
+            _debug_log(f"GET {url} -> error {exc.__class__.__name__}")
             continue
+    _debug_log(f"All fallback endpoints failed for host={host}")
     return None
 
 
@@ -345,6 +378,13 @@ def _fetch_scope_display_names(
     project_id, _, _ = _resolve_infisical_scope()
     project_name = _fetch_project_name(host, token, project_id)
     org_name = _fetch_org_name(host, token, REQUIRED_INFISICAL_ORG_ID)
+
+    if _debug_enabled():
+        _debug_log(
+            "display_names"
+            f" project_name={'set' if project_name else 'missing'}"
+            f" org_name={'set' if org_name else 'missing'}"
+        )
 
     return project_name, org_name
 
