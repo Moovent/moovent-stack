@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.6
+- UX: show resolved org/project names immediately after Step 1 auth.
+
 ## 0.4.5
 - Debug: add verbose Infisical name lookup logging when `MOOVENT_INFISICAL_DEBUG=1`.
 

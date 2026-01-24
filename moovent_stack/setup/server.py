@@ -37,6 +37,7 @@ from ..infisical import (
 from ..storage import _load_config, _save_config
 from ..workspace import _clone_or_update_repo, _inject_infisical_env
 from .templates import (
+    _setup_step1_confirm_html,
     _setup_step1_html,
     _setup_step2_html,
     _setup_step3_html,
@@ -366,9 +367,16 @@ def _run_setup_server() -> None:
                     config_data["github_client_secret"] = github_secret
 
                 _save_config(config_data)
-                self.send_response(302)
-                self.send_header("Location", "/step2")
-                self.end_headers()
+
+                # Show resolved names immediately on Step 1 confirmation
+                org_display = org_name or REQUIRED_INFISICAL_ORG_ID
+                project_display = project_name or REQUIRED_INFISICAL_PROJECT_ID
+                self._send(
+                    200,
+                    _setup_step1_confirm_html(
+                        org_name=org_display, project_name=project_display
+                    ),
+                )
                 return
 
             if self.path == "/save-step2":
