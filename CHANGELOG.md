@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.7
+- Fix: derive org name from workspace API response (org endpoints can be blocked by Cloudflare).
+
 ## 0.4.6
 - UX: show resolved org/project names immediately after Step 1 auth.
 

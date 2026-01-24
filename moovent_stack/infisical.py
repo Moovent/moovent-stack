@@ -313,6 +313,38 @@ def _extract_name_from_payload(payload: dict, keys: list[str]) -> Optional[str]:
     return name or None
 
 
+def _extract_org_name_from_workspace_payload(payload: dict) -> Optional[str]:
+    """
+    Extract org name from a workspace payload.
+
+    We prefer this path because some org endpoints are blocked (Cloudflare 403),
+    while the workspace endpoint is accessible with Universal Auth.
+    """
+    workspace = payload.get("workspace")
+    if isinstance(workspace, dict):
+        org = workspace.get("organization") or workspace.get("org")
+        if isinstance(org, dict):
+            name = str(org.get("name") or "").strip()
+            if name:
+                return name
+        # Some versions may flatten org info
+        name = str(
+            workspace.get("organizationName") or workspace.get("orgName") or ""
+        ).strip()
+        if name:
+            return name
+
+    # Fallback: flattened payload
+    org = payload.get("organization") or payload.get("org")
+    if isinstance(org, dict):
+        name = str(org.get("name") or "").strip()
+        if name:
+            return name
+
+    name = str(payload.get("organizationName") or payload.get("orgName") or "").strip()
+    return name or None
+
+
 def _fetch_project_name(host: str, token: str, project_id: str) -> Optional[str]:
     """
     Fetch project name from Infisical workspace API.
@@ -376,8 +408,36 @@ def _fetch_scope_display_names(
         return None, None
 
     project_id, _, _ = _resolve_infisical_scope()
-    project_name = _fetch_project_name(host, token, project_id)
-    org_name = _fetch_org_name(host, token, REQUIRED_INFISICAL_ORG_ID)
+
+    # Prefer workspace payload for BOTH project + org names (org endpoints may be blocked).
+    workspace_payload = _fetch_json_with_fallback(
+        host,
+        token,
+        [
+            f"/api/v1/workspace/{project_id}",
+            f"/api/v2/workspace/{project_id}",
+            f"/api/v2/workspaces/{project_id}",
+            f"/api/v1/workspaces/{project_id}",
+        ],
+    )
+    if workspace_payload:
+        project_name = _extract_name_from_payload(
+            workspace_payload, ["workspace", "project"]
+        )
+        org_name = _extract_org_name_from_workspace_payload(workspace_payload)
+        if _debug_enabled():
+            _debug_log(
+                "workspace_extract"
+                f" project_name={'set' if project_name else 'missing'}"
+                f" org_name={'set' if org_name else 'missing'}"
+            )
+    else:
+        project_name = None
+        org_name = None
+
+    # If org name still missing, try explicit org endpoints as a last resort.
+    if not org_name:
+        org_name = _fetch_org_name(host, token, REQUIRED_INFISICAL_ORG_ID)
 
     if _debug_enabled():
         _debug_log(
