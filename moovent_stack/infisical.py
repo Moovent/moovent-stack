@@ -293,6 +293,7 @@ def _fetch_project_name(host: str, token: str, project_id: str) -> Optional[str]
         token,
         [
             f"/api/v2/workspace/{project_id}",
+            f"/api/v2/workspaces/{project_id}",
             f"/api/v1/workspace/{project_id}",
             f"/api/v1/workspaces/{project_id}",
         ],
@@ -314,6 +315,8 @@ def _fetch_org_name(host: str, token: str, org_id: str) -> Optional[str]:
         host,
         token,
         [
+            f"/api/v2/organization/{org_id}",
+            f"/api/v2/organizations/{org_id}",
             f"/api/v1/organization/{org_id}",
             f"/api/v1/organizations/{org_id}",
         ],

@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.4
+- Fix: expand fallback Infisical endpoints for org/workspace name lookups.
+
 ## 0.4.3
 - Fix: add fallback Infisical endpoints for org/workspace name lookups.
 
