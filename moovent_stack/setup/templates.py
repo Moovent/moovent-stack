@@ -107,7 +107,6 @@ def _setup_shell(
           <h1 class="mt-4 font-semibold text-2xl text-gray-800">Welcome to Moovent Stack</h1>
           <p class="mt-2 text-sm text-gray-500">
             Run the full Moovent development environment locally.<br/>
-            Quick setup, then you're ready to code.
           </p>
         </div>
 
@@ -196,9 +195,6 @@ def _setup_step1_html(error_text: str = "") -> str:
           placeholder="infisical_client_secret_xxx"
           class="py-3 px-4 block w-full bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[{MOOVENT_ACCENT}]/50 focus:border-[{MOOVENT_ACCENT}]"
         />
-        <p class="mt-2 text-xs text-gray-500">
-          Stored locally with restricted permissions. Default host: eu.infisical.com (set INFISICAL_HOST to override).
-        </p>
       </div>
 
       <div class="pt-2">

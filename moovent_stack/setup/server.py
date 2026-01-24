@@ -35,7 +35,11 @@ from ..infisical import (
     _resolve_infisical_settings,
 )
 from ..storage import _load_config, _save_config
-from ..workspace import _clone_or_update_repo, _inject_infisical_env
+from ..workspace import (
+    _clone_or_update_repo,
+    _inject_infisical_env,
+    _default_workspace_path,
+)
 from .templates import (
     _setup_step1_html,
     _setup_step2_html,
@@ -377,18 +381,9 @@ def _run_setup_server() -> None:
             if self.path == "/save-step2":
                 workspace_root = (form.get("workspace_root", [""])[0] or "").strip()
                 if not workspace_root:
-                    github_login = (
-                        str(_load_config().get("github_login") or "").strip() or None
-                    )
-                    self._send(
-                        200,
-                        _setup_step2_html(
-                            github_login,
-                            error_text="Workspace path is required.",
-                            workspace_root="",
-                        ),
-                    )
-                    return
+                    # Some browsers/extensions may submit an empty value even when the UI
+                    # shows a default. Fall back to the default path instead of blocking.
+                    workspace_root = _default_workspace_path()
 
                 _save_config({"workspace_root": str(Path(workspace_root).expanduser())})
 

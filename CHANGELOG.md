@@ -7,6 +7,10 @@
 - UX: move Infisical access scope display to Step 2; keep Step 1 focused on credentials entry.
 - UX: hardcode org display name to "Moovent".
 
+## 0.4.9
+- UX: remove extra setup copy on Step 1.
+- Fix: use default workspace path when Step 2 form submits empty value.
+
 ## 0.4.6
 - UX: show resolved org/project names immediately after Step 1 auth.
 
