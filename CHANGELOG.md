@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.12
+- Fix: default workspace path is persisted when Step 3 is reached via OAuth redirect.
+
 ## 0.4.11
 - Docs: document local stack update behavior (auto-pull + one-click update).
 

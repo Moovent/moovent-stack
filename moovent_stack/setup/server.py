@@ -51,6 +51,20 @@ from .templates import (
 )
 
 
+def _resolve_workspace_root(cfg: dict) -> str:
+    """
+    Resolve a safe workspace root path from config.
+
+    Purpose:
+      OAuth flows can reach Step 3 without submitting Step 2, so we always
+      fall back to the default path rather than blocking installs.
+    """
+    raw = str(cfg.get("workspace_root") or "").strip()
+    if raw:
+        return str(Path(raw).expanduser())
+    return str(Path(_default_workspace_path()).expanduser())
+
+
 def _open_browser(url: str) -> None:
     try:
         webbrowser.open(url, new=2)
@@ -509,15 +523,10 @@ def _run_setup_server() -> None:
                     form.get("dashboard_branch", ["main"])[0] or "main"
                 ).strip()
                 cfg = _load_config()
-                workspace_root = str(cfg.get("workspace_root") or "").strip()
-                if not workspace_root:
-                    self._send(
-                        200,
-                        _setup_step2_html(
-                            None, error_text="Workspace path is required."
-                        ),
-                    )
-                    return
+                workspace_root = _resolve_workspace_root(cfg)
+                if not str(cfg.get("workspace_root") or "").strip():
+                    # OAuth can redirect to Step 3 before Step 2 submit; persist default.
+                    _save_config({"workspace_root": workspace_root})
 
                 try:
                     # Choose which UI to open at the end.
