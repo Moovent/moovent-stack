@@ -65,6 +65,22 @@ Your workspace folder **must contain**:
 
 If these are missing, `moovent-stack` fails fast with a clear error.
 
+## Keeping your stack up to date
+
+Your workspace runner (`run_local_stack.py`) includes a local **Stack Admin UI** (runs on localhost) that can:
+
+- Detect repo updates (behind `origin/<branch>`)
+- Show an **Update available** banner
+- Run a **one-click update** (fast-forward only) and restart services for updated repos
+
+Notes:
+
+- Updates are **safe by default**:
+  - Clean repos: can fast-forward (`git pull --ff-only`)
+  - Dirty repos: never auto-updated (you’ll be asked to commit/stash first)
+
+See `help/CONFIGURATION.md` for the auto-update environment variables.
+
 ## Secrets model (dev vs prod)
 
 ### Local development (dev)

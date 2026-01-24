@@ -57,6 +57,24 @@ Your workspace must contain these repo folders:
 Fix:
 - Re-run setup Step 3 and install the repos, or clone them manually into your workspace root.
 
+## “Update available” banner won’t update
+
+Common causes:
+
+- **Dirty repo**: you have local changes (uncommitted files).
+  - Fix: commit/stash/discard changes, then click **Update now** again.
+- **Detached HEAD**: the repo is not on a branch (checked out to a commit).
+  - Fix: checkout a branch (`git checkout main`) and retry.
+- **Upstream missing**: `origin/<branch>` doesn’t exist (non-standard branch or remote).
+  - Fix: ensure `origin` points to the expected remote and the branch exists.
+- **Fetch/pull failed**: network issues, auth issues, or GitHub rate limiting.
+  - Fix: run `git fetch --prune origin` inside the repo and inspect the error.
+
+Behavior:
+
+- The updater only does **fast-forward pulls** (`--ff-only`).
+- It never creates merge commits.
+
 ## GitHub connect issues (403 / scopes / SSO)
 
 Symptoms:

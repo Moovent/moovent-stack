@@ -90,6 +90,26 @@ export MOOVENT_WORKSPACE_ROOT="$HOME/Documents/Moovent-stack"
 export MOOVENT_RUNNER_PATH="/full/path/to/run_local_stack.py"
 ```
 
+## Local stack auto-update (run_local_stack.py)
+
+The local stack runner can check for repo updates and auto-pull on launch.
+
+Behavior:
+
+- Auto-pull only happens on launch, and only when the repo is clean.
+- Dirty worktrees are never auto-pulled.
+
+```bash
+# Enable/disable update checks (default: true)
+export MOOVENT_AUTOUPDATE_ENABLED=1
+
+# Enable/disable auto-pull on launch (default: true)
+export MOOVENT_AUTOUPDATE_AUTOPULL=1
+
+# How often the runner refreshes update status (seconds)
+export MOOVENT_AUTOUPDATE_CHECK_INTERVAL_S=3600
+```
+
 ## Setup server configuration
 
 The interactive setup runs a local HTTP server.

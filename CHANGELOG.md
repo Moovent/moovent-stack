@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.11
+- Docs: document local stack update behavior (auto-pull + one-click update).
+
 ## 0.4.10
 - UX: add install progress page (backend-synced) while repositories are downloading/configuring.
 - UX: success page now uses "Open the Dashboard" instead of closing the tab.

@@ -38,6 +38,15 @@ If Infisical credentials or workspace are not configured, `moovent-stack` opens 
   - GitHub OAuth app credentials are typically fetched from Infisical (admin-provisioned).
 - **Step 3 (Repo + branch)**: clones selected repos/branches into your workspace and starts the stack by running `run_local_stack.py`.
 
+## Updates (repos)
+
+Your workspace runner (`run_local_stack.py`) includes a local Stack Admin UI which can:
+
+- Detect when repos are behind `origin/<branch>`
+- Offer a one-click **Update now** action (fast-forward only) and restart services
+
+See `help/CONFIGURATION.md` for `MOOVENT_AUTOUPDATE_*` environment variables.
+
 ## Secrets model (dev vs prod)
 
 ### Local development (dev)

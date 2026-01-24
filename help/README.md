@@ -9,6 +9,10 @@ This folder contains **end-user documentation** for `moovent-stack` (the local M
 - **Troubleshooting**: `TROUBLESHOOTING.md`
 - **Security model**: `SECURITY.md`
 
+Quick links:
+
+- **Local stack updates (auto-pull + one-click update)**: see `CONFIGURATION.md` (“Local stack auto-update”)
+
 ## For contributors
 
 - **Development**: `DEVELOPMENT.md`
