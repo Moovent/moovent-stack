@@ -39,6 +39,7 @@ from ..infisical import (
 from ..storage import _load_config, _save_config
 from ..workspace import (
     _clone_or_update_repo,
+    _ensure_workspace_runner,
     _inject_infisical_env,
     _default_workspace_path,
 )
@@ -607,6 +608,14 @@ def _run_setup_server() -> None:
                                 "",
                             )
                             _inject_infisical_env(root)
+
+                            install.update(
+                                94,
+                                "Configuring",
+                                "Ensuring run_local_stack.py exists…",
+                                "",
+                            )
+                            _ensure_workspace_runner(root)
 
                             install.update(
                                 96,

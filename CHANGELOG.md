@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.13
+- Fix: ensure `run_local_stack.py` is created in new workspaces so the stack can start after setup.
+- UX: show an amber warning card on the installing page.
+
 ## 0.4.12
 - Fix: default workspace path is persisted when Step 3 is reached via OAuth redirect.
 
