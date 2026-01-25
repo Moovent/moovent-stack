@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.17
+- Fix: generated runner now installs dependencies and prints startup steps for clearer logs.
+
 ## 0.4.16
 - UX: always open the dashboard on `http://localhost:3000` for consistent setup links.
 - Fix: update generated runner to use port 3000 for dashboard-only installs.

@@ -201,6 +201,28 @@ def _popen(cmd: list[str], cwd: Path, env: dict[str, str]) -> subprocess.Popen:
     return subprocess.Popen(cmd, cwd=str(cwd), env=env)  # noqa: S603,S607
 
 
+def _ensure_node_deps(path: Path) -> None:
+    # Purpose: install node deps once for dev servers.
+    if (path / "node_modules").exists():
+        return
+    print(f"[runner] Installing node deps in {path}...", flush=True)
+    subprocess.check_call(["npm", "install"], cwd=str(path))
+
+
+def _ensure_python_venv(repo: Path) -> str:
+    # Purpose: isolate python deps for mqtt backend.
+    venv_dir = repo / ".venv"
+    python = venv_dir / "bin" / "python"
+    if not python.exists():
+        print(f"[runner] Creating venv in {venv_dir}...", flush=True)
+        subprocess.check_call([sys.executable, "-m", "venv", str(venv_dir)])
+    req = repo / "requirements.txt"
+    if req.exists():
+        print("[runner] Installing python deps...", flush=True)
+        subprocess.check_call([str(python), "-m", "pip", "install", "-r", str(req)])
+    return str(python)
+
+
 def main() -> int:
     root = Path(__file__).resolve().parent
     mqtt_repo = root / "mqtt_dashboard_watch"
@@ -247,12 +269,14 @@ def main() -> int:
     urls = []
 
     if mqtt_exists:
+        py_cmd = _ensure_python_venv(mqtt_repo)
+        _ensure_node_deps(mqtt_repo / "mqtt-admin-dashboard")
         # mqtt backend
         backend_env = dict(os.environ)
         backend_env.setdefault("PORT", "8000")
         backend_env["ALLOW_START_WITHOUT_MQTT"] = "true"
         procs.append(
-            _popen([sys.executable, "src/main.py"], cwd=mqtt_repo, env=backend_env)
+            _popen([py_cmd, "src/main.py"], cwd=mqtt_repo, env=backend_env)
         )
 
         # mqtt admin dashboard (vite)
@@ -267,6 +291,8 @@ def main() -> int:
 
     # Optional dashboard repo (if present)
     if dash_exists:
+        _ensure_node_deps(dash_repo / "server")
+        _ensure_node_deps(dash_repo / "client")
         server_env = dict(os.environ)
         server_env["PORT"] = server_env.get("PORT", "5001")
         procs.append(
