@@ -47,6 +47,14 @@ Your workspace runner (`run_local_stack.py`) includes a local Stack Admin UI whi
 
 See `help/CONFIGURATION.md` for `MOOVENT_AUTOUPDATE_*` environment variables.
 
+## Dashboard URL (consistent)
+
+The **Open the Dashboard** link always uses:
+
+- `http://localhost:3000`
+
+If both repos are installed, the dashboard client remains on `5173` while the MQTT admin UI stays on `3000`.
+
 ## Secrets model (dev vs prod)
 
 ### Local development (dev)

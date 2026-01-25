@@ -534,11 +534,7 @@ def _run_setup_server() -> None:
                     # Assumption:
                     # - `dashboard` repo runs at http://localhost:5173 (vite).
                     # - mqtt admin dashboard runs at http://localhost:3000 (vite).
-                    dashboard_url = (
-                        "http://localhost:5173"
-                        if install_dashboard
-                        else "http://localhost:3000"
-                    )
+                    dashboard_url = "http://localhost:3000"
 
                     # If an install is already running, just show the installing page.
                     snap = install.snapshot()

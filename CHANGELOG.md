@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.16
+- UX: always open the dashboard on `http://localhost:3000` for consistent setup links.
+- Fix: update generated runner to use port 3000 for dashboard-only installs.
+
 ## 0.4.15
 - Fix: allow dashboard-only installs (skip mqtt validation when unselected).
 

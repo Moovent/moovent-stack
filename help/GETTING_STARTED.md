@@ -81,6 +81,18 @@ Notes:
 
 See `help/CONFIGURATION.md` for the auto-update environment variables.
 
+## Dashboard URL (consistent)
+
+The **Open the Dashboard** button always points to:
+
+- `http://localhost:3000`
+
+Behavior:
+
+- If you install **mqtt_dashboard_watch only**: this is the MQTT admin dashboard.
+- If you install **dashboard only**: the dashboard client runs on port 3000.
+- If you install **both**: MQTT admin uses `3000`, dashboard client runs on `5173`.
+
 ## Secrets model (dev vs prod)
 
 ### Local development (dev)

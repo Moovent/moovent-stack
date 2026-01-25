@@ -75,6 +75,17 @@ Behavior:
 - The updater only does **fast-forward pulls** (`--ff-only`).
 - It never creates merge commits.
 
+## “Open the Dashboard” goes to 3000 but I installed both repos
+
+Behavior:
+
+- `http://localhost:3000` always points to the MQTT admin UI when it’s installed.
+- The main dashboard client runs on `http://localhost:5173` when both repos are installed.
+
+Fix:
+
+- Open `http://localhost:5173` for the dashboard client.
+
 ## GitHub connect issues (403 / scopes / SSO)
 
 Symptoms:
