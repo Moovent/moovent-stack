@@ -61,7 +61,7 @@ Your workspace folder **must contain**:
 
 - `run_local_stack.py` at the workspace root
 - `mqtt_dashboard_watch/` (repo folder)
-- `dashboard/` (repo folder)
+- `dashboard/` (repo folder, only if selected in Step 3)
 
 If these are missing, `moovent-stack` fails fast with a clear error.
 

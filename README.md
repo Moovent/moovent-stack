@@ -88,7 +88,7 @@ The CLI launches the local stack by running `run_local_stack.py` from your works
 Workspace requirements:
 - `run_local_stack.py` at the workspace root
 - `mqtt_dashboard_watch/` repo folder
-- `dashboard/` repo folder
+- `dashboard/` repo folder (only if selected in setup)
 
 Runtime env behavior:
 - Infisical client credentials are injected at runtime by `moovent-stack`.

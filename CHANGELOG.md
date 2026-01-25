@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.14
+- Fix: allow missing `dashboard/` when it wasn’t selected in setup.
+
 ## 0.4.13
 - Fix: ensure `run_local_stack.py` is created in new workspaces so the stack can start after setup.
 - UX: show an amber warning card on the installing page.

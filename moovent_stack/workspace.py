@@ -34,15 +34,36 @@ def _resolve_runner_path() -> Optional[Path]:
     return None
 
 
-def _validate_runner_path(path: Path) -> tuple[bool, str]:
-    """Validate workspace layout for local stack."""
+def _config_bool(value: object, default: bool) -> bool:
+    """
+    Convert config values into booleans with a safe default.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+    return default
+
+
+def _validate_runner_path(path: Path, *, config_override: Optional[dict] = None) -> tuple[bool, str]:
+    """
+    Validate workspace layout for local stack.
+
+    Behavior:
+      - mqtt_dashboard_watch is always required for the local stack.
+      - dashboard/ is required only if it was selected in setup.
+    """
     if not path.exists():
         return False, f"run_local_stack.py not found at: {path}"
     root = path.parent
+    cfg = config_override if config_override is not None else _load_config()
+    require_dashboard = _config_bool(cfg.get("install_dashboard"), True)
     missing = []
     if not (root / "mqtt_dashboard_watch").exists():
         missing.append("mqtt_dashboard_watch/")
-    if not (root / "dashboard").exists():
+    if require_dashboard and not (root / "dashboard").exists():
         missing.append("dashboard/")
     if missing:
         return False, f"Workspace missing: {', '.join(missing)} (expected under {root})"
