@@ -87,7 +87,7 @@ The CLI launches the local stack by running `run_local_stack.py` from your works
 
 Workspace requirements:
 - `run_local_stack.py` at the workspace root
-- `mqtt_dashboard_watch/` repo folder
+- `mqtt_dashboard_watch/` repo folder (only if selected in setup)
 - `dashboard/` repo folder (only if selected in setup)
 
 Runtime env behavior:

@@ -47,23 +47,43 @@ def _config_bool(value: object, default: bool) -> bool:
     return default
 
 
-def _validate_runner_path(path: Path, *, config_override: Optional[dict] = None) -> tuple[bool, str]:
+def _validate_runner_path(
+    path: Path, *, config_override: Optional[dict] = None
+) -> tuple[bool, str]:
     """
     Validate workspace layout for local stack.
 
     Behavior:
-      - mqtt_dashboard_watch is always required for the local stack.
-      - dashboard/ is required only if it was selected in setup.
+      - If setup selections exist, require only the selected repos.
+      - If no selections exist, infer required repos from what is present.
+      - At least one repo must be available.
     """
     if not path.exists():
         return False, f"run_local_stack.py not found at: {path}"
     root = path.parent
     cfg = config_override if config_override is not None else _load_config()
-    require_dashboard = _config_bool(cfg.get("install_dashboard"), True)
+    mqtt_exists = (root / "mqtt_dashboard_watch").exists()
+    dash_exists = (root / "dashboard").exists()
+
+    has_install_mqtt = "install_mqtt" in cfg
+    has_install_dashboard = "install_dashboard" in cfg
+    if has_install_mqtt or has_install_dashboard:
+        require_mqtt = _config_bool(cfg.get("install_mqtt"), True)
+        require_dashboard = _config_bool(cfg.get("install_dashboard"), True)
+        if not require_mqtt and not require_dashboard:
+            return False, "No repositories selected for installation."
+    else:
+        if mqtt_exists or dash_exists:
+            require_mqtt = mqtt_exists
+            require_dashboard = dash_exists
+        else:
+            require_mqtt = True
+            require_dashboard = False
+
     missing = []
-    if not (root / "mqtt_dashboard_watch").exists():
+    if require_mqtt and not mqtt_exists:
         missing.append("mqtt_dashboard_watch/")
-    if require_dashboard and not (root / "dashboard").exists():
+    if require_dashboard and not dash_exists:
         missing.append("dashboard/")
     if missing:
         return False, f"Workspace missing: {', '.join(missing)} (expected under {root})"
@@ -118,6 +138,9 @@ def _inject_infisical_env(workspace_root: Path) -> None:
     - Pass Infisical client credentials at runtime via moovent-stack instead.
     """
     env_path = workspace_root / "mqtt_dashboard_watch" / ".env"
+    if not env_path.parent.exists():
+        # mqtt repo not installed; nothing to inject yet.
+        return
     # Keep config aligned with mqtt_dashboard_watch Infisical loader env vars.
     # This prevents local runs failing due to missing project/environment settings.
     host, _, _ = _resolve_infisical_settings()
@@ -177,8 +200,15 @@ def main() -> int:
     mqtt_repo = root / "mqtt_dashboard_watch"
     dash_repo = root / "dashboard"
 
-    if not mqtt_repo.exists():
-        print(f"[runner] Missing repo folder: {mqtt_repo}", file=sys.stderr)
+    mqtt_exists = mqtt_repo.exists()
+    dash_exists = dash_repo.exists()
+
+    if not mqtt_exists and not dash_exists:
+        print(
+            f"[runner] No repositories installed under {root}. "
+            "Expected mqtt_dashboard_watch/ or dashboard/.",
+            file=sys.stderr,
+        )
         return 2
 
     if shutil.which("npm") is None:
@@ -208,19 +238,29 @@ def main() -> int:
     signal.signal(signal.SIGINT, _handle_sig)
     signal.signal(signal.SIGTERM, _handle_sig)
 
-    # mqtt backend
-    backend_env = dict(os.environ)
-    backend_env.setdefault("PORT", "8000")
-    backend_env["ALLOW_START_WITHOUT_MQTT"] = "true"
-    procs.append(_popen([sys.executable, "src/main.py"], cwd=mqtt_repo, env=backend_env))
+    urls = []
 
-    # mqtt admin dashboard (vite)
-    procs.append(_popen(["npm", "run", "dev"], cwd=mqtt_repo / "mqtt-admin-dashboard", env=dict(os.environ)))
+    if mqtt_exists:
+        # mqtt backend
+        backend_env = dict(os.environ)
+        backend_env.setdefault("PORT", "8000")
+        backend_env["ALLOW_START_WITHOUT_MQTT"] = "true"
+        procs.append(
+            _popen([sys.executable, "src/main.py"], cwd=mqtt_repo, env=backend_env)
+        )
 
-    urls = ["http://localhost:3000"]
+        # mqtt admin dashboard (vite)
+        procs.append(
+            _popen(
+                ["npm", "run", "dev"],
+                cwd=mqtt_repo / "mqtt-admin-dashboard",
+                env=dict(os.environ),
+            )
+        )
+        urls.append("http://localhost:3000")
 
     # Optional dashboard repo (if present)
-    if dash_repo.exists():
+    if dash_exists:
         server_env = dict(os.environ)
         server_env["PORT"] = server_env.get("PORT", "5001")
         procs.append(_popen(["npm", "run", "dev"], cwd=dash_repo / "server", env=server_env))

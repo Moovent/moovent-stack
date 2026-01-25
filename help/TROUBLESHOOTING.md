@@ -51,7 +51,7 @@ export MOOVENT_RUNNER_PATH="/full/path/to/run_local_stack.py"
 
 Your workspace must contain these repo folders:
 
-- `mqtt_dashboard_watch/`
+- `mqtt_dashboard_watch/` (only if selected in Step 3)
 - `dashboard/` (only if selected in Step 3)
 
 Fix:

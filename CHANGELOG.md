@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.15
+- Fix: allow dashboard-only installs (skip mqtt validation when unselected).
+
 ## 0.4.14
 - Fix: allow missing `dashboard/` when it wasn’t selected in setup.
 

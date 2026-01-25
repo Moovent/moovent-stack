@@ -58,6 +58,18 @@ class TestAccessGuard(unittest.TestCase):
             self.assertTrue(ok)
             self.assertEqual(error, "")
 
+    def test_validate_runner_path_allows_missing_mqtt_when_unselected(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            runner = root / "run_local_stack.py"
+            runner.write_text("# test")
+            (root / "dashboard").mkdir()
+            ok, error = workspace._validate_runner_path(
+                runner, config_override={"install_mqtt": False, "install_dashboard": True}
+            )
+            self.assertTrue(ok)
+            self.assertEqual(error, "")
+
     def test_normalize_infisical_host(self):
         self.assertEqual(
             infisical._normalize_infisical_host("app.infisical.com"),
