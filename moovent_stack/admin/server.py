@@ -151,9 +151,13 @@ def build_admin_server(
             # GitHub status
             if path == "/api/github/status":
                 current_id, current_secret = github_config()
+                user = github_state.user or {}
+                has_token = github_state.access_token is not None
                 self._send_json({
-                    "authenticated": github_state.access_token is not None,
-                    "user": github_state.user,
+                    "connected": has_token,
+                    "authenticated": has_token,  # Legacy field
+                    "login": user.get("login", ""),
+                    "user": user,
                     "can_auth": bool(current_id and current_secret),
                 })
                 return

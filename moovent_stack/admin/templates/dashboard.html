@@ -816,8 +816,11 @@
       }
 
       function checkAndShowSetupWizard() {
-        // Show setup wizard if GitHub OAuth is not configured (mandatory)
-        if (!state.github.can_auth && !setupState.completed) {
+        // Show setup wizard ONLY if:
+        // 1. GitHub OAuth is not configured (no client ID/secret), AND
+        // 2. User is not already connected (no valid token), AND
+        // 3. Setup hasn't been completed in this session
+        if (!state.github.can_auth && !state.github.connected && !setupState.completed) {
           showSetupWizard();
         }
       }
