@@ -1,8 +1,9 @@
 """
-Shared UI assets for the setup flow (brand colors + logo).
+Shared UI assets for the setup flow (brand colors + logo + favicons).
 """
 
 from __future__ import annotations
+from pathlib import Path
 
 
 # Moovent brand colors (matching mqtt-admin-dashboard tailwind.config.js)
@@ -11,6 +12,22 @@ MOOVENT_TEAL = "#A6D8D4"
 MOOVENT_GREEN = "#A8DFB4"
 MOOVENT_ACCENT = "#3A8FD2"
 MOOVENT_BACKGROUND = "#FAFBFC"  # brand-background from dashboard
+
+# Favicon directory path (relative to package root)
+_FAVICON_DIR = Path(__file__).parent.parent.parent / "favicon"
+
+
+def get_favicon_path(filename: str) -> Path:
+    """Return the path to a favicon file."""
+    return _FAVICON_DIR / filename
+
+
+def read_favicon(filename: str) -> bytes:
+    """Read favicon file as bytes."""
+    path = get_favicon_path(filename)
+    if path.exists():
+        return path.read_bytes()
+    return b""
 
 # Moovent logo PNG as base64 (from mqtt-admin-dashboard/public/moovent-logo.png)
 # This embeds the logo directly so the setup page works offline without external deps

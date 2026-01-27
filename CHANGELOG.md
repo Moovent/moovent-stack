@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.29
+- UI: add Moovent favicon to setup pages (96x96 PNG, ICO, and Apple touch icon).
+
 ## 0.4.28
 - Fix: stop running npm ci on every start (prevents node_modules disappearing under Vite).
 - Fix: derive DB_NAME from MONGO_URI when exporting runtime env from Infisical.

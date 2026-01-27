@@ -94,7 +94,9 @@ def _setup_shell(
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Moovent Stack Setup</title>
-    <link rel="icon" href="{MOOVENT_LOGO_BASE64}" />
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <script src="https://cdn.tailwindcss.com"></script>
   </head>
   <body class="text-gray-800" style="background-color: {MOOVENT_BACKGROUND};">
@@ -604,7 +606,9 @@ def _success_page_html(dashboard_url: str) -> str:
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Ready - Moovent Stack</title>
-    <link rel="icon" href="{MOOVENT_LOGO_BASE64}" />
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <script src="https://cdn.tailwindcss.com"></script>
   </head>
   <body class="min-h-screen flex flex-col text-gray-800" style="background-color: {MOOVENT_BACKGROUND};">

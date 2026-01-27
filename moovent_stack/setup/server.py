@@ -47,6 +47,7 @@ from ..workspace import (
     _resolve_runner_path,
 )
 from ..runner import _build_runner_env
+from .assets import get_favicon_path, read_favicon
 from .templates import (
     _installing_page_html,
     _setup_step1_html,
@@ -54,6 +55,17 @@ from .templates import (
     _setup_step3_html,
     _success_page_html,
 )
+
+# Favicon file mappings
+_FAVICON_FILES = {
+    "/favicon.ico": ("favicon.ico", "image/x-icon"),
+    "/favicon-96x96.png": ("favicon-96x96.png", "image/png"),
+    "/apple-touch-icon.png": ("apple-touch-icon.png", "image/png"),
+    "/favicon.svg": ("favicon.svg", "image/svg+xml"),
+    "/web-app-manifest-192x192.png": ("web-app-manifest-192x192.png", "image/png"),
+    "/web-app-manifest-512x512.png": ("web-app-manifest-512x512.png", "image/png"),
+    "/site.webmanifest": ("site.webmanifest", "application/manifest+json"),
+}
 
 
 def _resolve_workspace_root(cfg: dict) -> str:
@@ -170,6 +182,15 @@ def _run_setup_server() -> bool:
             self.end_headers()
             self.wfile.write(raw)
 
+        def _send_bytes(self, code: int, data: bytes, content_type: str) -> None:
+            """Send binary response (for favicon files)."""
+            self.send_response(code)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "public, max-age=86400")  # Cache for 1 day
+            self.end_headers()
+            self.wfile.write(data)
+
         def _send_json(self, code: int, payload: dict[str, object]) -> None:
             self._send(code, json.dumps(payload), "application/json")
 
@@ -188,6 +209,17 @@ def _run_setup_server() -> bool:
 
         def do_GET(self) -> None:
             cfg = _load_config()
+
+            # Serve favicon files
+            if self.path in _FAVICON_FILES:
+                filename, content_type = _FAVICON_FILES[self.path]
+                data = read_favicon(filename)
+                if data:
+                    self._send_bytes(200, data, content_type)
+                else:
+                    self._send(404, "Not found", "text/plain")
+                return
+
             if self.path == "/" or self.path.startswith("/?"):
                 step = self._next_step()
                 if step == 1:
