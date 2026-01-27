@@ -568,7 +568,11 @@ def main() -> int:
                 False,
             )
         )
-        dash_port = "3000" if not mqtt_exists else "4000"
+        # Keep dashboard on a fixed port for clarity and to avoid collisions.
+        # Port scheme:
+        # - mqtt-admin-dashboard: 3000
+        # - dashboard client: 4000
+        dash_port = "4000"
         _kill_stray_vite(root, [3000, 4000])
         procs.append(
             (

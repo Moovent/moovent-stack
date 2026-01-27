@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.33
+- UX: add Moovent Stack control UI on `http://localhost:7000` (stable place to manage and find links).
+- Change: dashboard client uses `4000` even for dashboard-only installs (no more port 3000 reuse).
+- UX: setup success page now links to Moovent Stack (7000) and shows MQTT (3000) + Dashboard (4000) separately.
+
 ## 0.4.32
 - UX: "Open Dashboard" button now waits for dashboard to be ready before enabling.
 - Fix: default dashboard URL changed from 5173 to 3000 in setup state.

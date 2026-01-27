@@ -597,7 +597,7 @@ def _installing_page_html(dashboard_url: str) -> str:
     )
 
 
-def _success_page_html(dashboard_url: str) -> str:
+def _success_page_html(stack_url: str) -> str:
     """Render the success page after saving config (light mode only)."""
     return f"""
 <!doctype html>
@@ -608,29 +608,32 @@ def _success_page_html(dashboard_url: str) -> str:
     <title>Ready - Moovent Stack</title>
     <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png" />
     <script>
-      const DASHBOARD_URL = {dashboard_url!r};
-      let dashboardReady = false;
+      // IMPORTANT:
+      // - The setup server exits immediately after rendering this page.
+      // - A separate "Moovent Stack UI" process starts on the same port (7000 by default).
+      // We poll /health until that UI is ready, then enable the button.
+      const STACK_URL = {stack_url!r};
+      const MQTT_URL = "http://localhost:3000";
+      const DASHBOARD_URL = "http://localhost:4000";
 
-      async function checkDashboard() {{
-        const btn = document.getElementById("open-dashboard-btn");
-        const status = document.getElementById("dashboard-status");
+      async function checkStackUi() {{
+        const btn = document.getElementById("open-stack-btn");
+        const status = document.getElementById("stack-status");
         if (!btn) return;
 
         try {{
-          const res = await fetch(DASHBOARD_URL, {{ mode: "no-cors", cache: "no-store" }});
-          // no-cors means we can't read response, but if fetch succeeds server is up
-          dashboardReady = true;
-          btn.classList.remove("opacity-50", "cursor-not-allowed");
-          btn.removeAttribute("disabled");
+          const res = await fetch(STACK_URL + "/health", {{ cache: "no-store" }});
+          if (!res.ok) throw new Error("not ok");
+          btn.classList.remove("opacity-50", "cursor-not-allowed", "pointer-events-none");
           if (status) status.textContent = "";
+          return;
         }} catch (e) {{
-          // Dashboard not ready yet
-          if (status) status.textContent = "Starting dashboard…";
-          setTimeout(checkDashboard, 1000);
+          if (status) status.textContent = "Starting Moovent Stack UI…";
+          setTimeout(checkStackUi, 800);
         }}
       }}
 
-      document.addEventListener("DOMContentLoaded", checkDashboard);
+      document.addEventListener("DOMContentLoaded", checkStackUi);
     </script>
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
@@ -647,19 +650,28 @@ def _success_page_html(dashboard_url: str) -> str:
         </div>
         <h2 class="mt-4 text-center font-semibold text-lg text-gray-800">You're all set!</h2>
         <p class="mt-2 text-center text-sm text-gray-500">
-          Moovent Stack is now running. Open the dashboard to continue.
+          Your stack is running. Use the Moovent Stack page (port 7000) to manage and find the right UI.
         </p>
         <div class="mt-5 flex flex-col items-center gap-2">
-          <a id="open-dashboard-btn" href="{dashboard_url}" target="_blank" rel="noopener noreferrer"
-            class="py-2.5 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 opacity-50 cursor-not-allowed"
-            style="background-color: {MOOVENT_ACCENT}; --tw-ring-color: {MOOVENT_ACCENT};"
-            disabled>
-            Open the Dashboard
+          <a id="open-stack-btn" href="{stack_url}" target="_blank" rel="noopener noreferrer"
+            class="py-2.5 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 opacity-50 cursor-not-allowed pointer-events-none"
+            style="background-color: {MOOVENT_ACCENT}; --tw-ring-color: {MOOVENT_ACCENT};">
+            Open Moovent Stack (7000)
             <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H19.5V12M10.5 18H4.5V12M19.5 6l-7.5 7.5M4.5 18l7.5-7.5"/>
             </svg>
           </a>
-          <span id="dashboard-status" class="text-xs text-gray-400">Starting dashboard…</span>
+          <span id="stack-status" class="text-xs text-gray-400">Starting Moovent Stack UI…</span>
+          <div class="mt-2 flex flex-wrap justify-center gap-2">
+            <a href="http://localhost:3000" target="_blank" rel="noopener noreferrer"
+              class="py-2 px-3 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-800 hover:bg-gray-50">
+              Open MQTT UI (3000)
+            </a>
+            <a href="http://localhost:4000" target="_blank" rel="noopener noreferrer"
+              class="py-2 px-3 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-800 hover:bg-gray-50">
+              Open Dashboard UI (4000)
+            </a>
+          </div>
         </div>
       </div>
     </main>

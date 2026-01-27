@@ -38,22 +38,17 @@ If Infisical credentials or workspace are not configured, `moovent-stack` opens 
   - GitHub OAuth app credentials are typically fetched from Infisical (admin-provisioned).
 - **Step 3 (Repo + branch)**: clones selected repos/branches into your workspace and starts the stack by running `run_local_stack.py`.
 
-## Updates (repos)
+## Local URLs (stable)
 
-Your workspace runner (`run_local_stack.py`) includes a local Stack Admin UI which can:
+Ports are owned by a single thing (no collisions):
 
-- Detect when repos are behind `origin/<branch>`
-- Offer a one-click **Update now** action (fast-forward only) and restart services
+- **Moovent Stack UI (control)**: `http://localhost:7000`
+- **MQTT UI** (`mqtt-admin-dashboard`): `http://localhost:3000`
+- **Dashboard UI** (`dashboard` client): `http://localhost:4000`
+- **Backend API** (`mqtt_dashboard_watch`): `http://localhost:8000`
 
-See `help/CONFIGURATION.md` for `MOOVENT_AUTOUPDATE_*` environment variables.
-
-## Dashboard URL (consistent)
-
-The **Open the Dashboard** link always uses:
-
-- `http://localhost:3000`
-
-If both repos are installed, the dashboard client remains on `5173` while the MQTT admin UI stays on `3000`.
+Notes:
+- The Moovent Stack UI is the place to find the right link and stop the stack.
 
 ## Secrets model (dev vs prod)
 

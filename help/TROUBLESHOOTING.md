@@ -75,16 +75,18 @@ Behavior:
 - The updater only does **fast-forward pulls** (`--ff-only`).
 - It never creates merge commits.
 
-## “Open the Dashboard” goes to 3000 but I installed both repos
+## I expected the dashboard but localhost:3000 shows the MQTT UI
 
 Behavior:
 
-- `http://localhost:3000` always points to the MQTT admin UI when it’s installed.
-- The main dashboard client runs on `http://localhost:4000` when both repos are installed.
+- `http://localhost:3000` is the MQTT admin UI (when mqtt is installed).
+- `http://localhost:4000` is the dashboard client (when dashboard is installed).
+- `http://localhost:7000` is the Moovent Stack control page (always).
 
 Fix:
 
-- Open `http://localhost:4000` for the dashboard client.
+- Open `http://localhost:7000` to see the Moovent Stack links.
+- Or open `http://localhost:4000` directly for the dashboard client.
 
 ## GitHub connect issues (403 / scopes / SSO)
 

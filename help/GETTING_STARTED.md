@@ -81,17 +81,14 @@ Notes:
 
 See `help/CONFIGURATION.md` for the auto-update environment variables.
 
-## Dashboard URL (consistent)
+## Local URLs (stable)
 
-The **Open the Dashboard** button always points to:
+Ports are fixed to avoid collisions:
 
-- `http://localhost:3000`
-
-Behavior:
-
-- If you install **mqtt_dashboard_watch only**: this is the MQTT admin dashboard.
-- If you install **dashboard only**: the dashboard client runs on port 3000.
-- If you install **both**: MQTT admin uses `3000`, dashboard client runs on `5173`.
+- **Moovent Stack UI (control)**: `http://localhost:7000`
+- **MQTT UI** (`mqtt-admin-dashboard`): `http://localhost:3000`
+- **Dashboard UI** (`dashboard` client): `http://localhost:4000`
+- **Backend API** (`mqtt_dashboard_watch`): `http://localhost:8000`
 
 ## Secrets model (dev vs prod)
 

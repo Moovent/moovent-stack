@@ -577,11 +577,12 @@ def _run_setup_server() -> bool:
                     _save_config({"workspace_root": workspace_root})
 
                 try:
-                    # Choose which UI to open at the end.
-                    # Port scheme:
-                    # - mqtt-admin-dashboard: http://localhost:3000
-                    # - dashboard (standalone): http://localhost:4000 (when both installed)
-                    dashboard_url = "http://localhost:3000"
+                    # Choose which Moovent-stack page to open at the end.
+                    #
+                    # IMPORTANT:
+                    # - Port 7000 is owned by moovent-stack (setup + control UI).
+                    # - Ports 3000/4000/8000 are owned by the cloned repos/services.
+                    stack_url = state.base_url or f"http://localhost:{_setup_port()}"
 
                     # If an install is already running, just show the installing page.
                     snap = install.snapshot()
@@ -593,7 +594,7 @@ def _run_setup_server() -> bool:
                         self.end_headers()
                         return
 
-                    install.reset(dashboard_url)
+                    install.reset(stack_url)
 
                     def _worker() -> None:
                         try:
