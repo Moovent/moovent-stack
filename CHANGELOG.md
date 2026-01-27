@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.27
+- Fix: stop stray Vite processes from previous runs and enforce strict ports (keeps dashboard URL stable).
+- Fix: add safe local defaults for missing MQTT/Mongo env so backend doesn't crash on missing secrets.
+
 ## 0.4.26
 - Fix: auto-map legacy mqtt env secret names (MQTT_BROKER/MONGO_DB/etc.) to required runtime vars (BROKER/DB_NAME/etc.).
 - Fix: clear Vite cache and start dev servers with --force to prevent 504 Outdated Optimize Dep white screens.

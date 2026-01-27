@@ -264,6 +264,66 @@ def _clear_vite_cache(project_dir: Path) -> None:
             shutil.rmtree(p, ignore_errors=True)
 
 
+def _kill_stray_vite(root: Path, ports: list[int]) -> None:
+    \"\"\"
+    Kill stray Vite dev servers from previous runs.
+
+    Why:
+      Setup can start the stack in the background; repeated installs can leave
+      old Vite processes running on 3000/3001/3002, causing port drift and
+      white screens / stale optimize deps.
+
+    Safety:
+      - Only kills processes that are listening on the target ports AND whose
+        command line contains this workspace path and `node_modules/.bin/vite`.
+    \"\"\"
+    if shutil.which("lsof") is None or shutil.which("ps") is None:
+        return
+
+    def _pids_for_port(port: int) -> list[int]:
+        try:
+            out = subprocess.check_output(
+                ["lsof", "-nP", "-iTCP:%d" % port, "-sTCP:LISTEN", "-t"],
+                text=True,
+            ).strip()
+        except Exception:
+            return []
+        pids: list[int] = []
+        for line in out.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                pids.append(int(line))
+            except ValueError:
+                continue
+        return pids
+
+    def _cmd(pid: int) -> str:
+        try:
+            return subprocess.check_output(
+                ["ps", "-p", str(pid), "-o", "command="], text=True
+            ).strip()
+        except Exception:
+            return ""
+
+    def _kill(pid: int) -> None:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except Exception:
+            return
+
+    root_s = str(root)
+    for port in ports:
+        for pid in _pids_for_port(port):
+            cmd = _cmd(pid)
+            if not cmd:
+                continue
+            if root_s in cmd and "node_modules/.bin/vite" in cmd:
+                print(f"[runner] Stopping stray Vite (pid={pid}) on port {port}…", flush=True)
+                _kill(pid)
+
+
 def _apply_mqtt_env_aliases() -> None:
     \"\"\"
     Map legacy env names to required mqtt_dashboard_watch names.
@@ -281,8 +341,27 @@ def _apply_mqtt_env_aliases() -> None:
         os.environ["MQTT_PASS"] = os.environ.get("MQTT_PASSWORD", "").strip()
     if not os.environ.get("MONGO_URI"):
         os.environ["MONGO_URI"] = os.environ.get("MONGODB_URI", "").strip()
+    if not os.environ.get("MONGO_URI"):
+        os.environ["MONGO_URI"] = "mongodb://localhost:27017/"
     if not os.environ.get("DB_NAME"):
+        # Try common aliases first.
         os.environ["DB_NAME"] = os.environ.get("MONGO_DB", "").strip()
+        # Best-effort derive DB name from URI path: mongodb://.../<db>?...
+        if not os.environ["DB_NAME"]:
+            uri = os.environ.get("MONGO_URI", "").strip()
+            if uri and "/" in uri:
+                tail = uri.rsplit("/", 1)[-1].split("?", 1)[0].strip()
+                if tail and "@" not in tail and ":" not in tail:
+                    os.environ["DB_NAME"] = tail
+        if not os.environ["DB_NAME"]:
+            os.environ["DB_NAME"] = "mqtt_dashboard"
+    # Safe defaults for local dev when secrets are missing.
+    if not os.environ.get("BROKER"):
+        os.environ["BROKER"] = "localhost"
+    if os.environ.get("MQTT_USER") is None:
+        os.environ["MQTT_USER"] = ""
+    if os.environ.get("MQTT_PASS") is None:
+        os.environ["MQTT_PASS"] = ""
     os.environ.setdefault("COL_DEVICES", "devices")
     os.environ.setdefault("COL_PARKINGS", "parkings")
     os.environ.setdefault("COL_TOTALS", "totals")
@@ -401,6 +480,7 @@ def main() -> int:
 
     if mqtt_exists:
         _apply_mqtt_env_aliases()
+        _kill_stray_vite(root, [3000, 3001, 3002])
         py_cmd = _ensure_python_venv(mqtt_repo)
         admin_dir = mqtt_repo / "mqtt-admin-dashboard"
         _ensure_node_deps(admin_dir)
@@ -442,7 +522,7 @@ def main() -> int:
             (
                 "mqtt-admin-dashboard",
                 _popen(
-                    ["npm", "run", "dev", "--", "--force"],
+                    ["npm", "run", "dev", "--", "--port", "3000", "--strictPort", "--force"],
                     cwd=admin_dir,
                     env=dict(os.environ),
                 ),
@@ -471,11 +551,15 @@ def main() -> int:
             )
         )
         dash_port = "3000" if not mqtt_exists else "5173"
+        if dash_port == "3000":
+            _kill_stray_vite(root, [3000, 3001, 3002])
+        else:
+            _kill_stray_vite(root, [5173])
         procs.append(
             (
                 "dashboard-client",
                 _popen(
-                    ["npm", "run", "dev", "--", "--force", "--port", dash_port],
+                    ["npm", "run", "dev", "--", "--force", "--port", dash_port, "--strictPort"],
                     cwd=client_dir,
                     env=dict(os.environ),
                 ),
