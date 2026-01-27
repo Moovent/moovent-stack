@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.25
+- Fix: export Infisical secrets recursively when exporting runtime env (supports foldered secrets).
+- Fix: auto-create missing `mqtt-admin-dashboard/src/lib/utils.js` to prevent Vite alias import failures.
+
 ## 0.4.24
 - Fix: export required mqtt_dashboard_watch env (BROKER/MONGO/etc.) from Infisical at runtime so backend doesn't crash.
 - Fix: runner no longer stops the UI when the mqtt backend exits.

@@ -151,6 +151,52 @@ def _inject_infisical_env(workspace_root: Path) -> None:
     _write_env_key(env_path, "INFISICAL_SECRET_PATH", secret_path)
 
 
+def _ensure_mqtt_admin_dashboard_shadcn_utils(workspace_root: Path) -> None:
+    """
+    Ensure mqtt-admin-dashboard has `src/lib/utils.js` (shadcn-style `cn()` helper).
+
+    Why:
+      Some UI components import `cn` from `@/lib/utils`, but the file can be missing
+      in certain branches. This causes Vite to fail to start with:
+        Failed to resolve import "@/lib/utils"
+
+    Behavior:
+      - Create the file if missing (do not overwrite).
+      - Keep it minimal and dependency-aligned with existing package.json.
+    """
+    utils_path = (
+        workspace_root
+        / "mqtt_dashboard_watch"
+        / "mqtt-admin-dashboard"
+        / "src"
+        / "lib"
+        / "utils.js"
+    )
+    if utils_path.exists():
+        return
+    utils_path.parent.mkdir(parents=True, exist_ok=True)
+    utils_path.write_text(
+        "\n".join(
+            [
+                'import clsx from "clsx";',
+                'import { twMerge } from "tailwind-merge";',
+                "",
+                "/**",
+                " * Merge Tailwind class names safely.",
+                " *",
+                " * Purpose:",
+                " *  - Used by shadcn/ui-style components (e.g. `@/components/ui/*`).",
+                " */",
+                "export function cn(...inputs) {",
+                "  return twMerge(clsx(inputs));",
+                "}",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+
 def _ensure_workspace_runner(workspace_root: Path) -> None:
     """
     Ensure `<workspace>/run_local_stack.py` exists.

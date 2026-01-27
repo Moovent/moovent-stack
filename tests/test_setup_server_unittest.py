@@ -39,5 +39,26 @@ class TestWorkspaceRunnerGeneration(unittest.TestCase):
             self.assertIn('dash_port = "3000" if not mqtt_exists else "5173"', content)
 
 
+class TestWorkspacePatches(unittest.TestCase):
+    def test_ensure_shadcn_utils_creates_file_when_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "mqtt_dashboard_watch" / "mqtt-admin-dashboard" / "src").mkdir(
+                parents=True, exist_ok=True
+            )
+            workspace._ensure_mqtt_admin_dashboard_shadcn_utils(root)
+            utils_path = (
+                root
+                / "mqtt_dashboard_watch"
+                / "mqtt-admin-dashboard"
+                / "src"
+                / "lib"
+                / "utils.js"
+            )
+            self.assertTrue(utils_path.exists())
+            content = utils_path.read_text(encoding="utf-8")
+            self.assertIn("export function cn", content)
+
+
 if __name__ == "__main__":
     raise SystemExit(unittest.main())

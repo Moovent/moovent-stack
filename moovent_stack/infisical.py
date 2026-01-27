@@ -182,7 +182,13 @@ def _infisical_login(host: str, client_id: str, client_secret: str) -> Optional[
 
 
 def _fetch_infisical_secrets(
-    host: str, token: str, project_id: str, environment: str, secret_path: str
+    host: str,
+    token: str,
+    project_id: str,
+    environment: str,
+    secret_path: str,
+    *,
+    recursive: bool = False,
 ) -> dict[str, str]:
     """
     Fetch secrets from Infisical and return as dict.
@@ -200,7 +206,9 @@ def _fetch_infisical_secrets(
             "secretPath": secret_path,
             "expandSecretReferences": "true",
             "includeImports": "true",
-            "recursive": "false",
+            # NOTE: `recursive=true` is important when teams organize secrets in folders
+            # under the configured secret path.
+            "recursive": "true" if recursive else "false",
         }
     )
     secrets_url = f"{host}/api/v4/secrets?{query}"
@@ -259,7 +267,10 @@ def _fetch_infisical_env_exports(
         return {}
 
     project_id, environment, secret_path = _resolve_infisical_scope()
-    secrets = _fetch_infisical_secrets(host, token, project_id, environment, secret_path)
+    # Use recursive secret fetch so required keys can be stored in subfolders.
+    secrets = _fetch_infisical_secrets(
+        host, token, project_id, environment, secret_path, recursive=True
+    )
     if not secrets:
         log_error("infisical", "Unable to export secrets: secrets query returned empty")
         return {}
@@ -574,7 +585,7 @@ def _fetch_github_oauth_from_infisical(
 
     project_id, environment, secret_path = _resolve_infisical_scope()
     secrets = _fetch_infisical_secrets(
-        host, token, project_id, environment, secret_path
+        host, token, project_id, environment, secret_path, recursive=False
     )
 
     github_id = secrets.get("MOOVENT_GITHUB_CLIENT_ID") or secrets.get(

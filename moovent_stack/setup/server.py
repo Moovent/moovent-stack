@@ -41,6 +41,7 @@ from ..storage import _load_config, _save_config
 from ..workspace import (
     _clone_or_update_repo,
     _ensure_workspace_runner,
+    _ensure_mqtt_admin_dashboard_shadcn_utils,
     _inject_infisical_env,
     _default_workspace_path,
     _resolve_runner_path,
@@ -597,6 +598,9 @@ def _run_setup_server() -> bool:
                                     "mqtt_dashboard_watch ready.",
                                     "",
                                 )
+                                # Ensure frontend can boot (some branches miss shadcn utils file).
+                                _ensure_mqtt_admin_dashboard_shadcn_utils(root)
+                                log_info("setup", "Ensured mqtt-admin-dashboard shadcn utils")
 
                             if install_dashboard:
                                 log_info("setup", f"Cloning dashboard (branch={dashboard_branch})")
