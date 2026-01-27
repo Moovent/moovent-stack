@@ -69,6 +69,52 @@
     <!-- Toast notification container -->
     <div id="toast-container" class="toast-container"></div>
 
+    <!-- Shutdown Confirmation Modal -->
+    <div id="shutdown-modal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+      <div class="flex min-h-screen items-center justify-center p-4">
+        <div class="fixed inset-0 bg-gray-900/70 backdrop-blur-sm" id="shutdown-modal-backdrop"></div>
+        <div class="relative w-full max-w-md bg-white border border-gray-200 rounded-xl shadow-xl">
+          <div class="p-6">
+            <!-- Header -->
+            <div class="flex items-start gap-4 mb-4">
+              <div class="flex-shrink-0 w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+                <i data-lucide="power" class="w-6 h-6 text-red-600"></i>
+              </div>
+              <div>
+                <h3 class="text-lg font-semibold text-gray-900">Shutdown Stack?</h3>
+                <p class="text-sm text-gray-500 mt-1">This will stop all running services.</p>
+              </div>
+            </div>
+            
+            <!-- Service List -->
+            <div class="mb-6 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <p class="text-xs font-medium text-gray-500 mb-2">Services that will be stopped:</p>
+              <div id="shutdown-service-list" class="space-y-1 text-sm text-gray-700">
+                <!-- Populated by JS -->
+              </div>
+            </div>
+            
+            <!-- Actions -->
+            <div class="flex items-center justify-end gap-3">
+              <button 
+                id="shutdown-cancel" 
+                class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                id="shutdown-confirm" 
+                class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+              >
+                <i data-lucide="power-off" class="w-4 h-4"></i>
+                Shutdown All
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="min-h-screen">
       <!-- Modern branded header -->
       <header class="sticky top-0 z-40 bg-white/80 backdrop-blur-lg border-b border-slate-200/60">
@@ -95,6 +141,16 @@
               <span id="admin-url" class="hidden sm:inline-flex text-xs font-mono px-2.5 py-1 bg-slate-100 text-slate-600 rounded-md border border-slate-200"></span>
               <div class="h-4 w-px bg-slate-200 hidden sm:block"></div>
               <div id="github-status" class="flex items-center gap-2 text-xs text-slate-600"></div>
+              <div class="h-4 w-px bg-slate-200"></div>
+              <!-- Shutdown Button -->
+              <button 
+                id="shutdown-btn" 
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors"
+                title="Shutdown all services"
+              >
+                <i data-lucide="power" class="w-3.5 h-3.5"></i>
+                <span class="hidden sm:inline">Shutdown</span>
+              </button>
             </div>
           </div>
         </div>
@@ -1732,6 +1788,69 @@
         showToast("info", "Stopping all services...", "Shutting down gracefully");
         postAction("/api/stack/stop");
       });
+
+      // Shutdown modal
+      const elShutdownBtn = document.getElementById("shutdown-btn");
+      const elShutdownModal = document.getElementById("shutdown-modal");
+      const elShutdownCancel = document.getElementById("shutdown-cancel");
+      const elShutdownConfirm = document.getElementById("shutdown-confirm");
+      const elShutdownBackdrop = document.getElementById("shutdown-modal-backdrop");
+      const elShutdownServiceList = document.getElementById("shutdown-service-list");
+
+      function showShutdownModal() {
+        // Populate service list
+        const running = state.services.filter(s => s.running || s.desired);
+        if (running.length === 0) {
+          elShutdownServiceList.innerHTML = '<span class="text-gray-400 italic">No services running</span>';
+        } else {
+          elShutdownServiceList.innerHTML = running.map(s => `
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full ${s.health_ok ? 'bg-emerald-500' : s.running ? 'bg-amber-500' : 'bg-gray-400'}"></span>
+              <span>${s.name}</span>
+              ${s.port ? `<span class="text-gray-400 text-xs">:${s.port}</span>` : ''}
+            </div>
+          `).join('');
+        }
+        elShutdownModal.classList.remove("hidden");
+        if (window.lucide) lucide.createIcons();
+      }
+
+      function hideShutdownModal() {
+        elShutdownModal.classList.add("hidden");
+      }
+
+      async function confirmShutdown() {
+        elShutdownConfirm.disabled = true;
+        elShutdownConfirm.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Shutting down...';
+        if (window.lucide) lucide.createIcons();
+        
+        try {
+          await postAction("/api/stack/stop");
+          showToast("success", "Stack shutdown", "All services have been stopped");
+          hideShutdownModal();
+          // Refresh to show stopped state
+          setTimeout(refreshServices, 500);
+        } catch (err) {
+          showToast("error", "Shutdown failed", err.message || "Could not stop services");
+        } finally {
+          elShutdownConfirm.disabled = false;
+          elShutdownConfirm.innerHTML = '<i data-lucide="power-off" class="w-4 h-4"></i> Shutdown All';
+          if (window.lucide) lucide.createIcons();
+        }
+      }
+
+      if (elShutdownBtn) {
+        elShutdownBtn.addEventListener("click", showShutdownModal);
+      }
+      if (elShutdownCancel) {
+        elShutdownCancel.addEventListener("click", hideShutdownModal);
+      }
+      if (elShutdownBackdrop) {
+        elShutdownBackdrop.addEventListener("click", hideShutdownModal);
+      }
+      if (elShutdownConfirm) {
+        elShutdownConfirm.addEventListener("click", confirmShutdown);
+      }
 
       if (elUpdateAction) {
         elUpdateAction.addEventListener("click", () => {
