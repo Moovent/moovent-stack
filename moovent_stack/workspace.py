@@ -188,6 +188,7 @@ Notes:
 from __future__ import annotations
 
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -202,10 +203,52 @@ def _popen(cmd: list[str], cwd: Path, env: dict[str, str]) -> subprocess.Popen:
 
 
 def _ensure_node_deps(path: Path) -> None:
-    # Purpose: install node deps for dev servers.
-    # Always run npm install - it's fast if deps exist and fixes corrupted installs.
-    print(f"[runner] Installing node deps in {path}...", flush=True)
-    subprocess.check_call(["npm", "install"], cwd=str(path))
+    \"\"\"
+    Ensure Node dependencies are installed (and not corrupted).
+
+    Why:
+      We have seen cases where `node_modules/vite` becomes internally inconsistent:
+      `vite/dist/node/cli.js` imports a chunk file that doesn't exist, causing:
+      ERR_MODULE_NOT_FOUND ... vite/dist/node/chunks/dep-XXXX.js
+
+    Logic:
+      - Prefer `npm ci` when `package-lock.json` exists (clean + deterministic).
+      - If `node_modules` exists but looks corrupted, delete it and reinstall.
+    \"\"\"
+    lock = path / "package-lock.json"
+    node_modules = path / "node_modules"
+
+    def _vite_is_healthy() -> bool:
+        cli = node_modules / "vite" / "dist" / "node" / "cli.js"
+        chunks_dir = node_modules / "vite" / "dist" / "node" / "chunks"
+        if not cli.exists() or not chunks_dir.exists():
+            return False
+        try:
+            text = cli.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            return False
+        # Example in cli.js: import './chunks/dep-BK3b2jBa.js'
+        refs = re.findall(r\"\"\"['"]\\./chunks/(dep-[^'"]+\\.js)['\"]\"\"\", text)
+        if not refs:
+            # Unexpected format; assume ok if files exist.
+            return True
+        for ref in set(refs):
+            if not (chunks_dir / ref).exists():
+                return False
+        return True
+
+    if node_modules.exists() and not _vite_is_healthy():
+        print(
+            "[runner] Detected corrupted node_modules (vite chunks mismatch). "
+            "Doing a clean reinstall...",
+            flush=True,
+        )
+        shutil.rmtree(node_modules, ignore_errors=True)
+
+    mode = "ci" if lock.exists() else "install"
+    print(f"[runner] Installing node deps in {path} (npm {mode})...", flush=True)
+    cmd = ["npm", mode, "--no-audit", "--no-fund"]
+    subprocess.check_call(cmd, cwd=str(path))
 
 
 def _ensure_python_venv(repo: Path) -> str:

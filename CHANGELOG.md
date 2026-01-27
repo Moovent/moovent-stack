@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.23
+- Fix: auto-repair corrupted Vite installs by detecting missing chunk files and doing a clean npm reinstall.
+
 ## 0.4.22
 - UX: removed helper text below Step 2 Continue button.
 - Fix: always run npm install to fix corrupted node_modules.
