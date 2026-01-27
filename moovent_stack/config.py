@@ -39,7 +39,7 @@ SETUP_ENV_PORT = "MOOVENT_SETUP_PORT"
 
 DEFAULT_ACCESS_TTL_S = 24 * 60 * 60
 ACCESS_REQUEST_TIMEOUT_S = 5.0
-DEFAULT_SETUP_PORT = 7000
+DEFAULT_SETUP_PORT = 9000
 
 DEFAULT_CACHE_PATH = Path.home() / ".moovent_stack_access.json"
 CONFIG_PATH = Path.home() / ".moovent_stack_config.json"
@@ -120,7 +120,7 @@ def _setup_noninteractive() -> bool:
 
 
 def _setup_port() -> int:
-    """Local setup server port (default 7000)."""
+    """Local setup server port (default 9000)."""
     raw = os.environ.get(SETUP_ENV_PORT, "").strip()
     if not raw:
         return DEFAULT_SETUP_PORT

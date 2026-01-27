@@ -610,7 +610,7 @@ def _success_page_html(stack_url: str) -> str:
     <script>
       // IMPORTANT:
       // - The setup server exits immediately after rendering this page.
-      // - A separate "Moovent Stack UI" process starts on the same port (7000 by default).
+      // - A separate "Moovent Stack UI" process starts on the same port (9000 by default).
       // We poll /health until that UI is ready, then enable the button.
       const STACK_URL = {stack_url!r};
       const MQTT_URL = "http://localhost:3000";
@@ -650,13 +650,13 @@ def _success_page_html(stack_url: str) -> str:
         </div>
         <h2 class="mt-4 text-center font-semibold text-lg text-gray-800">You're all set!</h2>
         <p class="mt-2 text-center text-sm text-gray-500">
-          Your stack is running. Use the Moovent Stack page (port 7000) to manage and find the right UI.
+          Your stack is running. Use the Moovent Stack page (port 9000) to manage and find the right UI.
         </p>
         <div class="mt-5 flex flex-col items-center gap-2">
           <a id="open-stack-btn" href="{stack_url}" target="_blank" rel="noopener noreferrer"
             class="py-2.5 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 opacity-50 cursor-not-allowed pointer-events-none"
             style="background-color: {MOOVENT_ACCENT}; --tw-ring-color: {MOOVENT_ACCENT};">
-            Open Moovent Stack (7000)
+            Open Moovent Stack (9000)
             <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H19.5V12M10.5 18H4.5V12M19.5 6l-7.5 7.5M4.5 18l7.5-7.5"/>
             </svg>

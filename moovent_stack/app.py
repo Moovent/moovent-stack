@@ -37,7 +37,7 @@ def main() -> int:
         if stack_launched:
             # Setup already started the stack in the background; don't run again.
             log_info("app", "Stack was launched by setup flow; exiting setup process.")
-            # Start a lightweight Moovent Stack UI on the setup port (7000 by default).
+            # Start a lightweight Moovent Stack UI on the setup port (9000 by default).
             # This is a separate process so the user can close the terminal.
             try:
                 ui_log_path = Path.home() / ".moovent_stack_ui.log"
@@ -79,7 +79,7 @@ def main() -> int:
     # Authenticate via Infisical Universal Auth before running the stack.
     log_info("app", "Authenticating with Infisical...")
     ensure_access_or_exit(host, client_id, client_secret)
-    # Start the Moovent Stack UI in the background so it's always available on port 7000.
+    # Start the Moovent Stack UI in the background so it's always available on port 9000.
     # If it's already running, the child will exit quickly with "address already in use".
     try:
         ui_log_path = Path.home() / ".moovent_stack_ui.log"

@@ -1,0 +1,143 @@
+Metadata-Version: 2.4
+Name: moovent-stack
+Version: 0.5.0b1
+Summary: Moovent internal developer stack launcher
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+
+# Moovent Stack
+
+This repository contains the **Moovent local dev stack launcher** (`moovent-stack`).
+
+Goals:
+- Install with **one command** via Homebrew
+- Run with **one command** (`moovent-stack`)
+- Guided setup (Infisical → GitHub → repo/branch selection)
+- **Access-controlled** via Infisical Universal Auth
+
+## Install (Homebrew)
+
+```bash
+brew install moovent/tap/moovent-stack
+```
+
+## Run (recommended)
+
+```bash
+moovent-stack
+```
+
+If Infisical credentials or workspace are not configured, `moovent-stack` opens a setup page automatically.
+
+## Documentation
+
+- **Help index**: `help/README.md`
+- **Getting started**: `help/GETTING_STARTED.md`
+- **Configuration (env vars, config files)**: `help/CONFIGURATION.md`
+- **Troubleshooting**: `help/TROUBLESHOOTING.md`
+- **Security model**: `help/SECURITY.md`
+- **Development (contributors)**: `help/DEVELOPMENT.md`
+
+## What moovent-stack does
+
+- **Step 1 (Infisical)**: validates your Machine Identity can access the required Moovent project.
+- **Step 2 (Workspace + GitHub)**: picks a workspace install path and authorizes GitHub.
+  - GitHub OAuth app credentials are typically fetched from Infisical (admin-provisioned).
+- **Step 3 (Repo + branch)**: clones selected repos/branches into your workspace and starts the stack by running `run_local_stack.py`.
+
+## Local URLs (stable)
+
+Ports are owned by a single thing (no collisions):
+
+- **Moovent Stack UI (control)**: `http://127.0.0.1:7000` (macOS note: `localhost:7000` may be claimed by AirPlay/AirTunes)
+- **MQTT UI** (`mqtt-admin-dashboard`): `http://localhost:3000`
+- **Dashboard UI** (`dashboard` client): `http://localhost:4000`
+- **Backend API** (`mqtt_dashboard_watch`): `http://localhost:8000`
+
+Notes:
+- The Moovent Stack UI is the place to find the right link and stop the stack.
+
+## Secrets model (dev vs prod)
+
+### Local development (dev)
+
+- `moovent-stack` **does not write** `INFISICAL_CLIENT_ID` or `INFISICAL_CLIENT_SECRET` into any `.env` file.
+- It injects Infisical credentials into the environment **at runtime** when launching `run_local_stack.py`.
+- It writes **only non-sensitive scope config** (host/project/environment/path) to:
+  - `<workspace>/mqtt_dashboard_watch/.env`
+
+### Production (Render)
+
+- Provide `INFISICAL_CLIENT_ID` and `INFISICAL_CLIENT_SECRET` as **Render environment variables**.
+
+## Run (manual / non-interactive)
+
+You can run without the setup UI by providing required values via environment variables.
+See `help/CONFIGURATION.md` for the full reference.
+
+```bash
+export INFISICAL_CLIENT_ID="YOUR_CLIENT_ID"
+export INFISICAL_CLIENT_SECRET="YOUR_CLIENT_SECRET"
+export INFISICAL_HOST="https://eu.infisical.com"   # optional override (default)
+export INFISICAL_ENVIRONMENT="dev"                 # default: dev
+export INFISICAL_SECRET_PATH="/"                   # default: /
+
+# Workspace path (contains run_local_stack.py and repo folders)
+export MOOVENT_WORKSPACE_ROOT="$HOME/Documents/Moovent-stack"
+
+# Optional: disable setup UI and fail fast if anything is missing
+export MOOVENT_SETUP_NONINTERACTIVE=1
+
+moovent-stack
+```
+
+## Local-only mode (default)
+
+The CLI launches the local stack by running `run_local_stack.py` from your workspace.
+
+Workspace requirements:
+- `run_local_stack.py` at the workspace root
+- `mqtt_dashboard_watch/` repo folder (only if selected in setup)
+- `dashboard/` repo folder (only if selected in setup)
+
+Runtime env behavior:
+- Infisical client credentials are injected at runtime by `moovent-stack`.
+- `mqtt_dashboard_watch/.env` stays non-sensitive (no `INFISICAL_CLIENT_ID/SECRET` on disk).
+
+## Access control (Infisical Universal Auth)
+
+On every run, the CLI authenticates using **Infisical Universal Auth** (cached with TTL).
+If credentials are valid **and** have access to the required Moovent project, access is allowed.
+
+Env vars (summary — full reference in `help/CONFIGURATION.md`):
+
+```bash
+# Required:
+INFISICAL_CLIENT_ID=...
+INFISICAL_CLIENT_SECRET=...
+
+# Optional:
+INFISICAL_HOST=...                # default: https://eu.infisical.com
+INFISICAL_ENVIRONMENT=dev         # default: dev
+INFISICAL_SECRET_PATH=/           # default: /
+
+# Optional (default: https://eu.infisical.com, US: https://app.infisical.com):
+MOOVENT_ACCESS_TTL_S=86400
+MOOVENT_ACCESS_CACHE_PATH=~/.moovent_stack_access.json
+MOOVENT_ACCESS_SELF_CLEAN=1
+# If set, disable setup page and fail fast when missing config:
+MOOVENT_SETUP_NONINTERACTIVE=1
+# Optional: override runner path directly
+MOOVENT_RUNNER_PATH=/full/path/to/run_local_stack.py
+# Optional: provide workspace root instead
+MOOVENT_WORKSPACE_ROOT=/Users/you/Projects/moovent
+```
+
+## Development
+
+Run locally:
+
+```bash
+python3 -m moovent_stack
+```
+

@@ -580,7 +580,7 @@ def _run_setup_server() -> bool:
                     # Choose which Moovent-stack page to open at the end.
                     #
                     # IMPORTANT:
-                    # - Port 7000 is owned by moovent-stack (setup + control UI).
+                    # - Port 9000 is owned by moovent-stack (setup + control UI).
                     # - Ports 3000/4000/8000 are owned by the cloned repos/services.
                     stack_url = state.base_url or f"http://127.0.0.1:{_setup_port()}"
 
@@ -752,7 +752,7 @@ def _run_setup_server() -> bool:
     # NOTE (macOS):
     # `localhost` can resolve to IPv6 (::1). On some machines, Apple services
     # (AirTunes/AirPlay) answer on ::1:7000 and return 403, which breaks users
-    # who open `http://localhost:7000`.
+    # who open `http://localhost:7000`. We now use port 9000 to avoid this.
     #
     # We intentionally use 127.0.0.1 everywhere for Moovent Stack UI URLs.
     _host, port = server.server_address

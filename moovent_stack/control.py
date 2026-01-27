@@ -2,7 +2,7 @@
 Moovent Stack local control UI (localhost-only).
 
 Purpose:
-  Provide a stable, Moovent-stack-owned page on http://127.0.0.1:7000
+  Provide a stable, Moovent-stack-owned page on http://127.0.0.1:9000
   to avoid confusion with app/service UIs (MQTT, dashboard, backend).
 
 Design goals:

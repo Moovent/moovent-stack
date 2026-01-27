@@ -17,7 +17,7 @@ from typing import Optional
 # Network / ports
 # ---------------------------------------------------------------------------
 ADMIN_BIND = "127.0.0.1"
-DEFAULT_ADMIN_PORT = 7000  # Moovent Stack UI port (aligned with setup)
+DEFAULT_ADMIN_PORT = 9000  # Avoids macOS AirPlay conflict on 5000/7000
 
 # ---------------------------------------------------------------------------
 # Logging

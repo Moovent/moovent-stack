@@ -14,7 +14,8 @@
   - `admin/templates/` — Dashboard HTML template
 - Change: Setup now launches `python -m moovent_stack.admin` directly after install.
 - Change: Generated `run_local_stack.py` is now a thin launcher that delegates to the admin module.
-- Ports remain standardized: 7000 (admin), 3000 (MQTT UI), 4000 (dashboard UI), 8000 (backend API).
+- Change: Default port changed from 7000 to **9000** to avoid macOS AirPlay/AirTunes conflict.
+- Ports: 9000 (admin), 3000 (MQTT UI), 4000 (dashboard UI), 8000 (backend API).
 
 ## 0.4.34
 - Fix: use `http://127.0.0.1:7000` for Moovent Stack UI links to avoid macOS AirPlay/AirTunes 403 on `localhost:7000`.

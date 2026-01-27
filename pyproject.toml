@@ -1,9 +1,20 @@
 [project]
 name = "moovent-stack"
-version = "0.5.0b1"
+version = "0.5.0b2"
 description = "Moovent internal developer stack launcher"
 readme = "README.md"
 requires-python = ">=3.9"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["moovent_stack*"]
+
+[tool.setuptools.package-data]
+"moovent_stack.admin.templates" = ["*.html"]
+"moovent_stack.setup" = ["favicon/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
