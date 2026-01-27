@@ -504,10 +504,14 @@ def main() -> int:
         _ensure_node_deps(admin_dir)
         _clear_vite_cache(admin_dir)
         # mqtt_dashboard_watch backend requires these env vars at import-time.
+        # Required env vars for the backend to import and start.
+        #
+        # NOTE:
+        # - MQTT credentials can legitimately be empty in local dev (no auth broker).
+        # - We still set empty defaults for MQTT_USER / MQTT_PASS, but we do not
+        #   block backend startup on them being non-empty.
         required = [
             "BROKER",
-            "MQTT_USER",
-            "MQTT_PASS",
             "MONGO_URI",
             "DB_NAME",
             "COL_DEVICES",

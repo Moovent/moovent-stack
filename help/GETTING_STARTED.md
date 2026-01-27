@@ -85,7 +85,7 @@ See `help/CONFIGURATION.md` for the auto-update environment variables.
 
 Ports are fixed to avoid collisions:
 
-- **Moovent Stack UI (control)**: `http://localhost:7000`
+- **Moovent Stack UI (control)**: `http://127.0.0.1:7000` (macOS note: `localhost:7000` may be claimed by AirPlay/AirTunes)
 - **MQTT UI** (`mqtt-admin-dashboard`): `http://localhost:3000`
 - **Dashboard UI** (`dashboard` client): `http://localhost:4000`
 - **Backend API** (`mqtt_dashboard_watch`): `http://localhost:8000`

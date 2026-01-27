@@ -582,7 +582,7 @@ def _run_setup_server() -> bool:
                     # IMPORTANT:
                     # - Port 7000 is owned by moovent-stack (setup + control UI).
                     # - Ports 3000/4000/8000 are owned by the cloned repos/services.
-                    stack_url = state.base_url or f"http://localhost:{_setup_port()}"
+                    stack_url = state.base_url or f"http://127.0.0.1:{_setup_port()}"
 
                     # If an install is already running, just show the installing page.
                     snap = install.snapshot()
@@ -751,9 +751,15 @@ def _run_setup_server() -> bool:
     except OSError as exc:
         print(f"[setup] Unable to start local setup server: {exc}", file=sys.stderr)
         raise SystemExit(2)
-    host, port = server.server_address
-    setup_url = f"http://{host}:{port}/"
-    state.base_url = f"http://{host}:{port}"
+    # NOTE (macOS):
+    # `localhost` can resolve to IPv6 (::1). On some machines, Apple services
+    # (AirTunes/AirPlay) answer on ::1:7000 and return 403, which breaks users
+    # who open `http://localhost:7000`.
+    #
+    # We intentionally use 127.0.0.1 everywhere for Moovent Stack UI URLs.
+    _host, port = server.server_address
+    setup_url = f"http://127.0.0.1:{port}/"
+    state.base_url = f"http://127.0.0.1:{port}"
 
     print("[setup] Setup is not configured. Opening setup page…")
     print(f"[setup] {setup_url}")

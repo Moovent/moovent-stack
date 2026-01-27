@@ -1,7 +1,11 @@
 # Changelog
 
+## 0.4.34
+- Fix: use `http://127.0.0.1:7000` for Moovent Stack UI links to avoid macOS AirPlay/AirTunes 403 on `localhost:7000`.
+- Fix: do not block mqtt backend startup when `MQTT_USER` is empty (local dev).
+
 ## 0.4.33
-- UX: add Moovent Stack control UI on `http://localhost:7000` (stable place to manage and find links).
+- UX: add Moovent Stack control UI on `http://127.0.0.1:7000` (stable place to manage and find links).
 - Change: dashboard client uses `4000` even for dashboard-only installs (no more port 3000 reuse).
 - UX: setup success page now links to Moovent Stack (7000) and shows MQTT (3000) + Dashboard (4000) separately.
 

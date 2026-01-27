@@ -81,11 +81,11 @@ Behavior:
 
 - `http://localhost:3000` is the MQTT admin UI (when mqtt is installed).
 - `http://localhost:4000` is the dashboard client (when dashboard is installed).
-- `http://localhost:7000` is the Moovent Stack control page (always).
+- `http://127.0.0.1:7000` is the Moovent Stack control page (always).
 
 Fix:
 
-- Open `http://localhost:7000` to see the Moovent Stack links.
+- Open `http://127.0.0.1:7000` to see the Moovent Stack links.
 - Or open `http://localhost:4000` directly for the dashboard client.
 
 ## GitHub connect issues (403 / scopes / SSO)

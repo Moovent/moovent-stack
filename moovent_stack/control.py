@@ -2,7 +2,7 @@
 Moovent Stack local control UI (localhost-only).
 
 Purpose:
-  Provide a stable, Moovent-stack-owned page on http://localhost:7000
+  Provide a stable, Moovent-stack-owned page on http://127.0.0.1:7000
   to avoid confusion with app/service UIs (MQTT, dashboard, backend).
 
 Design goals:
@@ -96,12 +96,12 @@ def _index_html() -> str:
       <div class="card">
         <div class="muted">Moovent Stack control UI (localhost-only)</div>
         <h1 style="margin:10px 0 6px 0;">Moovent Stack <span class="muted" style="font-size:14px;">v{__version__}</span></h1>
-        <div class="muted">This page is served by moovent-stack on <code>http://localhost:{_setup_port()}</code>.</div>
+        <div class="muted">This page is served by moovent-stack on <code>http://127.0.0.1:{_setup_port()}</code>.</div>
 
         <div class="row">
-          <a class="button ghost" href="http://localhost:3000" target="_blank" rel="noopener noreferrer">Open MQTT UI (3000)</a>
-          <a class="button ghost" href="http://localhost:4000" target="_blank" rel="noopener noreferrer">Open Dashboard UI (4000)</a>
-          <a class="button ghost" href="http://localhost:8000" target="_blank" rel="noopener noreferrer">Open Backend (8000)</a>
+          <a class="button ghost" href="http://127.0.0.1:3000" target="_blank" rel="noopener noreferrer">Open MQTT UI (3000)</a>
+          <a class="button ghost" href="http://127.0.0.1:4000" target="_blank" rel="noopener noreferrer">Open Dashboard UI (4000)</a>
+          <a class="button ghost" href="http://127.0.0.1:8000" target="_blank" rel="noopener noreferrer">Open Backend (8000)</a>
         </div>
 
         <h3 style="margin:16px 0 8px 0;">Status</h3>
