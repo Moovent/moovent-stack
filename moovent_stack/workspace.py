@@ -248,6 +248,47 @@ def _popen(cmd: list[str], cwd: Path, env: dict[str, str]) -> subprocess.Popen:
     return subprocess.Popen(cmd, cwd=str(cwd), env=env)  # noqa: S603,S607
 
 
+def _clear_vite_cache(project_dir: Path) -> None:
+    \"\"\"
+    Remove Vite prebundle caches.
+
+    Why:
+      Vite can serve 504 "Outdated Optimize Dep" when the prebundled deps are stale.
+      Clearing the cache + starting with `--force` makes startup reliable.
+    \"\"\"
+    for p in [
+        project_dir / "node_modules" / ".vite",
+        project_dir / ".vite",
+    ]:
+        if p.exists():
+            shutil.rmtree(p, ignore_errors=True)
+
+
+def _apply_mqtt_env_aliases() -> None:
+    \"\"\"
+    Map legacy env names to required mqtt_dashboard_watch names.
+
+    Why:
+      Some setups store these keys as `MQTT_BROKER`, `MQTT_USERNAME`, `MQTT_PASSWORD`,
+      and `MONGO_DB`, while the backend requires `BROKER`, `MQTT_USER`, `MQTT_PASS`,
+      `DB_NAME`, and `COL_*` at import time.
+    \"\"\"
+    if not os.environ.get("BROKER"):
+        os.environ["BROKER"] = os.environ.get("MQTT_BROKER", "").strip()
+    if not os.environ.get("MQTT_USER"):
+        os.environ["MQTT_USER"] = os.environ.get("MQTT_USERNAME", "").strip()
+    if not os.environ.get("MQTT_PASS"):
+        os.environ["MQTT_PASS"] = os.environ.get("MQTT_PASSWORD", "").strip()
+    if not os.environ.get("MONGO_URI"):
+        os.environ["MONGO_URI"] = os.environ.get("MONGODB_URI", "").strip()
+    if not os.environ.get("DB_NAME"):
+        os.environ["DB_NAME"] = os.environ.get("MONGO_DB", "").strip()
+    os.environ.setdefault("COL_DEVICES", "devices")
+    os.environ.setdefault("COL_PARKINGS", "parkings")
+    os.environ.setdefault("COL_TOTALS", "totals")
+    os.environ.setdefault("COL_BUCKETS", "buckets")
+
+
 def _ensure_node_deps(path: Path) -> None:
     \"\"\"
     Ensure Node dependencies are installed (and not corrupted).
@@ -359,8 +400,11 @@ def main() -> int:
     urls = []
 
     if mqtt_exists:
+        _apply_mqtt_env_aliases()
         py_cmd = _ensure_python_venv(mqtt_repo)
-        _ensure_node_deps(mqtt_repo / "mqtt-admin-dashboard")
+        admin_dir = mqtt_repo / "mqtt-admin-dashboard"
+        _ensure_node_deps(admin_dir)
+        _clear_vite_cache(admin_dir)
         # mqtt_dashboard_watch backend requires these env vars at import-time.
         required = [
             "BROKER",
@@ -398,8 +442,8 @@ def main() -> int:
             (
                 "mqtt-admin-dashboard",
                 _popen(
-                    ["npm", "run", "dev"],
-                    cwd=mqtt_repo / "mqtt-admin-dashboard",
+                    ["npm", "run", "dev", "--", "--force"],
+                    cwd=admin_dir,
                     env=dict(os.environ),
                 ),
                 True,
@@ -410,7 +454,9 @@ def main() -> int:
     # Optional dashboard repo (if present)
     if dash_exists:
         _ensure_node_deps(dash_repo / "server")
-        _ensure_node_deps(dash_repo / "client")
+        client_dir = dash_repo / "client"
+        _ensure_node_deps(client_dir)
+        _clear_vite_cache(client_dir)
         server_env = dict(os.environ)
         server_env["PORT"] = server_env.get("PORT", "5001")
         procs.append(
@@ -429,8 +475,8 @@ def main() -> int:
             (
                 "dashboard-client",
                 _popen(
-                    ["npm", "run", "dev", "--", "--port", dash_port],
-                    cwd=dash_repo / "client",
+                    ["npm", "run", "dev", "--", "--force", "--port", dash_port],
+                    cwd=client_dir,
                     env=dict(os.environ),
                 ),
                 True,

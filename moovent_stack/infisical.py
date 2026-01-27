@@ -275,10 +275,42 @@ def _fetch_infisical_env_exports(
         log_error("infisical", "Unable to export secrets: secrets query returned empty")
         return {}
 
+    def _first_nonempty(*candidates: str) -> str:
+        for c in candidates:
+            v = str(secrets.get(c) or "").strip()
+            if v:
+                return v
+        return ""
+
+    def _resolve_required(key: str) -> str:
+        # Support legacy/env-example key names.
+        if key == "BROKER":
+            return _first_nonempty("BROKER", "MQTT_BROKER", "MQTT_HOST")
+        if key == "MQTT_USER":
+            return _first_nonempty("MQTT_USER", "MQTT_USERNAME", "MQTT_USER_NAME")
+        if key == "MQTT_PASS":
+            return _first_nonempty("MQTT_PASS", "MQTT_PASSWORD", "MQTT_PWD")
+        if key == "MONGO_URI":
+            return _first_nonempty("MONGO_URI", "MONGODB_URI", "MONGO_URL")
+        if key == "DB_NAME":
+            return _first_nonempty("DB_NAME", "MONGO_DB", "MONGO_DATABASE")
+        if key == "MQTT_PORT":
+            return _first_nonempty("MQTT_PORT")
+        if key == "COL_DEVICES":
+            return _first_nonempty("COL_DEVICES") or "devices"
+        if key == "COL_PARKINGS":
+            return _first_nonempty("COL_PARKINGS") or "parkings"
+        if key == "COL_TOTALS":
+            return _first_nonempty("COL_TOTALS") or "totals"
+        if key == "COL_BUCKETS":
+            return _first_nonempty("COL_BUCKETS") or "buckets"
+        # For non-required/unknown keys, export by exact name only.
+        return str(secrets.get(key) or "").strip()
+
     exported: dict[str, str] = {}
     missing: list[str] = []
     for key in wanted:
-        val = str(secrets.get(key) or "").strip()
+        val = _resolve_required(key)
         if val:
             exported[key] = val
         else:

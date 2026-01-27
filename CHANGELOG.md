@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.26
+- Fix: auto-map legacy mqtt env secret names (MQTT_BROKER/MONGO_DB/etc.) to required runtime vars (BROKER/DB_NAME/etc.).
+- Fix: clear Vite cache and start dev servers with --force to prevent 504 Outdated Optimize Dep white screens.
+
 ## 0.4.25
 - Fix: export Infisical secrets recursively when exporting runtime env (supports foldered secrets).
 - Fix: auto-create missing `mqtt-admin-dashboard/src/lib/utils.js` to prevent Vite alias import failures.
