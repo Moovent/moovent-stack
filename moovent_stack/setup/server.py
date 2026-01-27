@@ -43,7 +43,9 @@ from ..workspace import (
     _ensure_workspace_runner,
     _inject_infisical_env,
     _default_workspace_path,
+    _resolve_runner_path,
 )
+from ..runner import _build_runner_env
 from .templates import (
     _installing_page_html,
     _setup_step1_html,
@@ -74,13 +76,14 @@ def _open_browser(url: str) -> None:
         print("[runner] Unable to open browser automatically.", file=sys.stderr)
 
 
-def _run_setup_server() -> None:
+def _run_setup_server() -> bool:
     """
     Launch a local setup page to collect credentials + install settings.
     """
 
     class _SetupState:
         done: bool = False
+        stack_launched: bool = False
         oauth_state: Optional[str] = None
         base_url: Optional[str] = None
 
@@ -649,8 +652,42 @@ def _run_setup_server() -> None:
                                 }
                             )
 
+                            # Start the stack in a detached subprocess so it runs
+                            # even after the setup server exits.
+                            install.update(
+                                98,
+                                "Starting",
+                                "Launching local stack…",
+                                "",
+                            )
+                            runner_path = _resolve_runner_path()
+                            if runner_path and runner_path.exists():
+                                import subprocess as sp
+                                import os as _os
+
+                                env = _os.environ.copy()
+                                for k, v in _build_runner_env().items():
+                                    if v and not env.get(k):
+                                        env[k] = v
+                                # Start detached so it survives setup server exit.
+                                # Use Popen with start_new_session on Unix.
+                                log_info("setup", f"Launching stack: {runner_path}")
+                                sp.Popen(
+                                    [sys.executable, str(runner_path)],
+                                    env=env,
+                                    start_new_session=True,
+                                    stdout=sp.DEVNULL,
+                                    stderr=sp.DEVNULL,
+                                    stdin=sp.DEVNULL,
+                                )
+                                log_info("setup", "Stack launched in background")
+                                state.stack_launched = True
+                                # Give services a moment to bind ports.
+                                import time
+                                time.sleep(2)
+
                             log_info("setup", "Install complete")
-                            install.finish("Starting Moovent Stack…")
+                            install.finish("Moovent Stack is running!")
                         except Exception as exc:
                             log_error("setup", f"Install failed: {exc}")
                             install.fail(f"Download failed: {exc}")
@@ -688,3 +725,5 @@ def _run_setup_server() -> None:
         server.server_close()
     except Exception:
         pass
+
+    return state.stack_launched

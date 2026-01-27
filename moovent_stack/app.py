@@ -30,7 +30,12 @@ def main() -> int:
             print(f"[runner] {msg}", file=sys.stderr)
             print(f"[runner] See log: {get_log_path()}", file=sys.stderr)
             return 2
-        _run_setup_server()
+        stack_launched = _run_setup_server()
+        if stack_launched:
+            # Setup already started the stack in the background; don't run again.
+            log_info("app", "Stack was launched by setup flow; exiting setup process.")
+            print("[runner] Stack is running. You can close this terminal.")
+            return 0
         host, client_id, client_secret = _resolve_infisical_settings()
         runner_path = _resolve_runner_path()
         log_info("app", f"Post-setup runner path: {runner_path}")

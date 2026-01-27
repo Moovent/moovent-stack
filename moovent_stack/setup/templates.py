@@ -616,7 +616,7 @@ def _success_page_html(dashboard_url: str) -> str:
         </div>
         <h2 class="mt-4 text-center font-semibold text-lg text-gray-800">You're all set!</h2>
         <p class="mt-2 text-center text-sm text-gray-500">
-          Moovent Stack is starting. Open the dashboard to continue.
+          Moovent Stack is now running. Open the dashboard to continue.
         </p>
         <div class="mt-5 flex justify-center">
           <a href="{dashboard_url}" target="_blank" rel="noopener noreferrer"

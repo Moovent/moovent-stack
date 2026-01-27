@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.20
+- Fix: start the stack automatically after setup completes (no more "page not found" when clicking Open Dashboard).
+
 ## 0.4.19
 - Fix: set a browser-like User-Agent for Infisical API calls (prevents Cloudflare 1010 blocks).
 
