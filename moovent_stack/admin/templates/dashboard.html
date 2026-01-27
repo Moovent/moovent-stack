@@ -51,6 +51,18 @@
       .toast-progress { position: absolute; bottom: 0; left: 0; height: 3px; background: rgba(255,255,255,0.4); border-radius: 0 0 12px 12px; }
       @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
       @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+      /* Log formatting */
+      .log-line { padding: 2px 0; border-bottom: 1px solid #f1f5f9; }
+      .log-line:last-child { border-bottom: none; }
+      .log-time { color: #64748b; }
+      .log-level { font-weight: 600; padding: 1px 6px; border-radius: 4px; font-size: 10px; text-transform: uppercase; }
+      .log-level-info { background: #dbeafe; color: #1e40af; }
+      .log-level-warning { background: #fef3c7; color: #92400e; }
+      .log-level-error { background: #fee2e2; color: #991b1b; }
+      .log-level-debug { background: #f3e8ff; color: #6b21a8; }
+      .log-component { color: #0891b2; font-weight: 500; }
+      .log-message { color: #1e293b; }
+      .log-extra { color: #64748b; font-size: 11px; }
     </style>
   </head>
   <body class="bg-slate-50 text-slate-800 antialiased">
@@ -1238,14 +1250,67 @@
           .join("");
       }
 
+      function formatLogLine(entry) {
+        const time = formatTime(entry.ts);
+        const raw = entry.line || "";
+        
+        // Try to parse as JSON
+        let parsed = null;
+        try {
+          // Handle lines that start with timestamp like "[12:37:41 PM] {...}"
+          const jsonMatch = raw.match(/^(?:\[[^\]]+\]\s*)?(\{.*\})$/);
+          if (jsonMatch) {
+            parsed = JSON.parse(jsonMatch[1]);
+          } else if (raw.trim().startsWith("{")) {
+            parsed = JSON.parse(raw);
+          }
+        } catch (e) {
+          // Not JSON, render as plain text
+        }
+        
+        if (parsed && parsed.message) {
+          const level = (parsed.level || "INFO").toUpperCase();
+          const levelClass = {
+            "INFO": "log-level-info",
+            "WARNING": "log-level-warning",
+            "WARN": "log-level-warning",
+            "ERROR": "log-level-error",
+            "DEBUG": "log-level-debug",
+          }[level] || "log-level-info";
+          
+          const component = parsed.component ? `<span class="log-component">[${escapeHtml(parsed.component)}]</span> ` : "";
+          const message = escapeHtml(parsed.message);
+          
+          // Collect extra fields (exclude common ones)
+          const skipFields = new Set(["timestamp", "level", "message", "component", "taskName"]);
+          const extras = Object.entries(parsed)
+            .filter(([k, v]) => !skipFields.has(k) && v !== null && v !== undefined && v !== "")
+            .map(([k, v]) => `${k}=${typeof v === "object" ? JSON.stringify(v) : v}`)
+            .join(" ");
+          
+          const extraHtml = extras ? ` <span class="log-extra">${escapeHtml(extras)}</span>` : "";
+          
+          return `<div class="log-line"><span class="log-time">[${time}]</span> <span class="log-level ${levelClass}">${level}</span> ${component}<span class="log-message">${message}</span>${extraHtml}</div>`;
+        }
+        
+        // Plain text fallback
+        return `<div class="log-line"><span class="log-time">[${time}]</span> <span class="log-message">${escapeHtml(raw)}</span></div>`;
+      }
+      
+      function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
       function renderLogs() {
         const filter = state.filter.trim().toLowerCase();
         const lines = state.logs.filter((entry) => {
           if (!filter) return true;
           return entry.line.toLowerCase().includes(filter);
         });
-        const text = lines.map((entry) => `[${formatTime(entry.ts)}] ${entry.line}`).join("\\n");
-        elLogOutput.textContent = text || "No logs yet.";
+        const html = lines.map(formatLogLine).join("");
+        elLogOutput.innerHTML = html || "<div class='log-line text-gray-400'>No logs yet.</div>";
         if (state.autoScroll) {
           elLogOutput.scrollTop = elLogOutput.scrollHeight;
         }
