@@ -4,8 +4,11 @@ Main orchestration for moovent-stack.
 
 from __future__ import annotations
 
+import os
+import subprocess
 import sys
 from pathlib import Path
+from shutil import which
 
 from .access import ensure_access_or_exit
 from .config import _setup_noninteractive, _setup_port
@@ -17,8 +20,78 @@ from .storage import _load_config
 from .workspace import _resolve_runner_path, _validate_runner_path
 
 
+def _check_homebrew_update() -> None:
+    """
+    Check for Homebrew package updates and auto-upgrade if available.
+    
+    Only runs if:
+    - brew is available
+    - MOOVENT_SKIP_UPDATE is not set
+    """
+    if os.environ.get("MOOVENT_SKIP_UPDATE", "").strip().lower() in ("1", "true", "yes"):
+        return
+    
+    brew = which("brew")
+    if not brew:
+        return
+    
+    formula = "moovent/tap/moovent-stack"
+    
+    try:
+        # Check if update is available (quick check)
+        print("[runner] Checking for updates...", flush=True)
+        log_info("app", "Checking for Homebrew updates...")
+        
+        # Update tap first (fetch latest formula)
+        subprocess.run(
+            [brew, "update", "--quiet"],
+            capture_output=True,
+            timeout=30,
+        )
+        
+        # Check if outdated
+        result = subprocess.run(
+            [brew, "outdated", formula],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        
+        # If formula appears in outdated list, upgrade it
+        if formula in result.stdout or "moovent-stack" in result.stdout:
+            print("[runner] Update available! Upgrading moovent-stack...", flush=True)
+            log_info("app", "Homebrew update available, upgrading...")
+            
+            upgrade_result = subprocess.run(
+                [brew, "upgrade", formula],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            
+            if upgrade_result.returncode == 0:
+                print("[runner] Updated! Please restart moovent-stack.", flush=True)
+                log_info("app", "Homebrew upgrade successful, restart required")
+                # Exit so user restarts with new version
+                sys.exit(0)
+            else:
+                log_error("app", f"Homebrew upgrade failed: {upgrade_result.stderr}")
+                print("[runner] Update failed, continuing with current version.", flush=True)
+        else:
+            log_info("app", "moovent-stack is up to date")
+    
+    except subprocess.TimeoutExpired:
+        log_info("app", "Update check timed out, continuing...")
+    except Exception as e:
+        log_info("app", f"Update check failed: {e}")
+
+
 def main() -> int:
     log_startup()
+    
+    # Check for Homebrew updates first
+    _check_homebrew_update()
+    
     log_info("app", "Resolving settings...")
     host, client_id, client_secret = _resolve_infisical_settings()
     runner_path = _resolve_runner_path()
@@ -77,7 +150,6 @@ def main() -> int:
     log_info("app", f"Starting admin dashboard for workspace: {workspace_root}")
     
     # Inject Infisical runtime env before starting
-    import os
     for k, v in _build_runner_env().items():
         if v and not os.environ.get(k):
             os.environ[k] = v
