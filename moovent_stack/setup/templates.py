@@ -308,7 +308,6 @@ def _setup_step2_html(
           Continue
           <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"/></svg>
         </button>
-        {"" if github_login else '<p class="mt-2 text-xs text-center text-gray-500">Connect GitHub above to continue</p>'}
       </div>
     </form>
     """

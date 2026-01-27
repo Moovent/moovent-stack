@@ -202,9 +202,8 @@ def _popen(cmd: list[str], cwd: Path, env: dict[str, str]) -> subprocess.Popen:
 
 
 def _ensure_node_deps(path: Path) -> None:
-    # Purpose: install node deps once for dev servers.
-    if (path / "node_modules").exists():
-        return
+    # Purpose: install node deps for dev servers.
+    # Always run npm install - it's fast if deps exist and fixes corrupted installs.
     print(f"[runner] Installing node deps in {path}...", flush=True)
     subprocess.check_call(["npm", "install"], cwd=str(path))
 

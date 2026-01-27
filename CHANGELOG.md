@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.22
+- UX: removed helper text below Step 2 Continue button.
+- Fix: always run npm install to fix corrupted node_modules.
+
 ## 0.4.21
 - UX: grey out Step 2 Continue button until GitHub is connected.
 - Fix: stack runner now logs to ~/.moovent_stack_runner.log for debugging.
