@@ -168,7 +168,7 @@ class StackManager:
     Process manager for the local stack. Keeps logs + desired state.
     """
 
-    def __init__(self, log_store: LogStore) -> None:
+    def __init__(self, log_store: LogStore, quiet: bool = True) -> None:
         self.services: dict[str, ServiceSpec] = {}
         self.procs: dict[str, subprocess.Popen] = {}
         self.start_times: dict[str, float] = {}
@@ -180,6 +180,8 @@ class StackManager:
         self.last_pids: dict[str, int] = {}
         self._lock = threading.Lock()
         self.log_store = log_store
+        # If quiet=True, service logs go only to log_store, not to terminal
+        self.quiet = quiet
 
     def register(self, spec: ServiceSpec) -> None:
         self.services[spec.name] = spec
@@ -317,17 +319,20 @@ class StackManager:
         self.log_store.append(name, f"[runner] process exited with code {code}")
 
     def _stream_proc(self, name: str, proc: subprocess.Popen) -> None:
-        """Stream child stdout to terminal and log store."""
+        """Stream child stdout to log store (and optionally terminal)."""
         try:
             assert proc.stdout is not None
             for line in proc.stdout:
                 line = line.rstrip("\n")
                 if not line:
                     continue
-                print(f"[{name}] {line}", flush=True)
+                # Only print to terminal if not in quiet mode
+                if not self.quiet:
+                    print(f"[{name}] {line}", flush=True)
                 self.log_store.append(name, line)
         except Exception as exc:
-            print(f"[runner] log stream error for {name}: {exc}", flush=True)
+            if not self.quiet:
+                print(f"[runner] log stream error for {name}: {exc}", flush=True)
 
 
 def restart_repo_services(manager: StackManager, repo: Path) -> list[str]:

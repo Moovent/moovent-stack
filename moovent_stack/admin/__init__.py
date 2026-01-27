@@ -67,48 +67,6 @@ def _latest_py_mtime(root: Path) -> float:
     return latest
 
 
-def _print_summary(manager: StackManager, admin_port: int) -> None:
-    """Print a full summary of URLs + process + reachability."""
-    print("", flush=True)
-    print("[runner] ===================== STACK READY =====================", flush=True)
-    for item in manager.status_snapshot():
-        name = str(item["name"])
-        port = item.get("port") or 0
-        port_ok = item.get("port_open", False)
-        health_status = item.get("health_status", "n/a")
-        url = item.get("url", "")
-        status_str = "OK" if port_ok else "WAITING"
-        print(f"[runner]   {name:20s} port={port:5d} [{status_str:7s}] {health_status}", flush=True)
-        if url:
-            print(f"[runner]     -> {url}", flush=True)
-    print(f"[runner]   {'admin':20s} port={admin_port:5d} [OK     ]", flush=True)
-    print(f"[runner]     -> http://{ADMIN_BIND}:{admin_port}", flush=True)
-    print("[runner] ==========================================================", flush=True)
-    print("", flush=True)
-
-
-def _wait_for_healthy_then_print_summary(
-    manager: StackManager,
-    admin_port: int,
-    timeout_s: float = 120.0,
-    poll_s: float = 1.0,
-) -> None:
-    """Wait for all services to become healthy, then print summary."""
-    start = time.time()
-    while (time.time() - start) < timeout_s:
-        snapshot = manager.status_snapshot()
-        all_healthy = all(
-            item.get("health_ok", False) or not item.get("desired_running", True)
-            for item in snapshot
-        )
-        if all_healthy:
-            _print_summary(manager, admin_port)
-            return
-        time.sleep(poll_s)
-    # Timeout: print summary anyway
-    _print_summary(manager, admin_port)
-
-
 def _restart_repo_services(manager: StackManager, repo: Path) -> list[str]:
     """Restart services that belong to a repo after a successful update."""
     restarted: list[str] = []
@@ -273,7 +231,8 @@ def main(workspace: Path | None = None) -> int:
     log_store = LogStore()
     git_cache = GitCache()
     github_state = GitHubState()
-    manager = StackManager(log_store)
+    # quiet=True suppresses service logs from terminal (view in dashboard instead)
+    manager = StackManager(log_store, quiet=True)
 
     # Ensure ports align with dashboard client proxy.
     mqtt_proc_env = dict(os.environ)
@@ -366,20 +325,19 @@ def main(workspace: Path | None = None) -> int:
     try:
         manager.start_all()
 
+        admin_url = f"http://{ADMIN_BIND}:{admin_port}"
         print("", flush=True)
-        print("[runner] Stack starting...", flush=True)
-        print(f"[runner] Stack admin UI: http://{ADMIN_BIND}:{admin_port}", flush=True)
-        print("[runner] Waiting for all services to be ready...", flush=True)
-        print("[runner] Stop: Ctrl+C", flush=True)
+        print("[runner] ========================================", flush=True)
+        print("[runner] Moovent Stack Admin Dashboard", flush=True)
+        print(f"[runner] {admin_url}", flush=True)
+        print("[runner] ========================================", flush=True)
+        print("[runner] View service logs in the dashboard.", flush=True)
+        print("[runner] Press Ctrl+C to shutdown.", flush=True)
         print("", flush=True)
 
-        # Start background thread to wait for healthy services and print summary
-        summary_thread = threading.Thread(
-            target=_wait_for_healthy_then_print_summary,
-            args=(manager, admin_port),
-            daemon=True,
-        )
-        summary_thread.start()
+        # Auto-open browser
+        if should_open_browser():
+            open_browser(admin_url)
 
         # Wait loop: restarts mqtt-backend on .py file changes
         if mqtt_watch_root:

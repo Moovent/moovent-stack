@@ -46,17 +46,65 @@ def run_cmd(cmd: list[str], *, cwd: Path, env: Optional[dict[str, str]] = None) 
     subprocess.check_call(cmd, cwd=str(cwd), env=env or os.environ)
 
 
+def _vite_is_healthy(node_modules: Path) -> bool:
+    """
+    Check if Vite installation is healthy (all chunk files exist).
+    
+    Why:
+      Vite can become internally inconsistent when `node_modules/vite` 
+      has `cli.js` importing chunk files that don't exist, causing:
+      ERR_MODULE_NOT_FOUND ... vite/dist/node/chunks/dep-XXXX.js
+    """
+    import re
+    cli = node_modules / "vite" / "dist" / "node" / "cli.js"
+    chunks_dir = node_modules / "vite" / "dist" / "node" / "chunks"
+    
+    if not cli.exists() or not chunks_dir.exists():
+        return False
+    
+    try:
+        text = cli.read_text(encoding="utf-8", errors="replace")
+    except Exception:
+        return False
+    
+    # Example in cli.js: import './chunks/dep-BK3b2jBa.js'
+    refs = re.findall(r"""['"]\./chunks/(dep-[^'"]+\.js)['"]""", text)
+    if not refs:
+        # Unexpected format; assume ok if files exist
+        return True
+    
+    for ref in set(refs):
+        if not (chunks_dir / ref).exists():
+            return False
+    return True
+
+
 def ensure_node_deps(project_dir: Path) -> None:
     """
     Ensure `npm install` has been run for a Node project.
-    Heuristic: if node_modules missing, install.
+    
+    Also detects and repairs corrupted Vite installations.
     """
+    import shutil
+    
     if not (project_dir / "package.json").exists():
         raise FileNotFoundError(f"Missing package.json in {project_dir}")
-    if (project_dir / "node_modules").exists():
-        return
-    print(f"[runner] Installing npm deps in {project_dir} ...", flush=True)
-    run_cmd(["npm", "install"], cwd=project_dir)
+    
+    node_modules = project_dir / "node_modules"
+    
+    # Check if node_modules exists and Vite is healthy
+    needs_install = not node_modules.exists()
+    if not needs_install and (node_modules / "vite").exists():
+        if not _vite_is_healthy(node_modules):
+            print(f"[runner] Corrupted Vite detected in {project_dir}, reinstalling...", flush=True)
+            shutil.rmtree(node_modules, ignore_errors=True)
+            needs_install = True
+    
+    if needs_install:
+        print(f"[runner] Installing npm deps in {project_dir} ...", flush=True)
+        lock = project_dir / "package-lock.json"
+        mode = "ci" if lock.exists() else "install"
+        run_cmd(["npm", mode, "--no-audit", "--no-fund"], cwd=project_dir)
 
 
 def ensure_python_deps(mqtt_repo: Path, system_python: str) -> str:
