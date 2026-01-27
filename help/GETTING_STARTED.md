@@ -5,7 +5,7 @@
 - Validates access using **Infisical Universal Auth** (Machine Identity)
 - Helps you choose a **workspace install path**
 - Connects to GitHub via OAuth and clones the Moovent repos you select
-- Runs your local stack via `run_local_stack.py`
+- Runs your local stack via the **Admin Dashboard**
 
 ## Quickstart (recommended)
 
@@ -23,7 +23,7 @@ moovent-stack
 
 If setup is missing, a local setup page opens automatically.
 
-## Setup flow (what you’ll see)
+## Setup flow (what you'll see)
 
 ### Step 1 — Infisical access
 
@@ -42,7 +42,7 @@ Notes:
   - This authorizes access to Moovent repos and stores an access token locally
 
 Admin note:
-- GitHub OAuth Client ID/Secret are fetched from Infisical (if available). If not, the UI shows “Contact your admin”.
+- GitHub OAuth Client ID/Secret are fetched from Infisical (if available). If not, the UI shows "Contact your admin".
 
 ### Step 3 — Repo + branch selection
 
@@ -53,13 +53,42 @@ Admin note:
 - Click **Install Selected**
 
 After cloning, `moovent-stack` writes **only non-sensitive Infisical scope config** to `mqtt_dashboard_watch/.env`
-and then starts the stack.
+and then starts the Admin Dashboard.
+
+## Admin Dashboard
+
+After setup completes, the **Admin Dashboard** opens at:
+
+**`http://127.0.0.1:9000`**
+
+### Dashboard features
+
+| Feature | Description |
+|---------|-------------|
+| **Service cards** | View all services with live status (listening/not listening) |
+| **Start/Stop/Restart** | Control each service individually with one click |
+| **Real-time logs** | SSE-streamed logs per service with auto-scroll |
+| **Git info** | Current branch, commit, clean/dirty status |
+| **Update detection** | Shows "Update available" when remote has new commits |
+| **One-click update** | Fast-forward pull + automatic service restart |
+| **GitHub OAuth** | Re-connect GitHub if token expires |
+
+### Service ports
+
+| Service | Port | URL |
+|---------|------|-----|
+| **Admin Dashboard** | 9000 | `http://127.0.0.1:9000` |
+| MQTT UI | 3000 | `http://localhost:3000` |
+| Dashboard UI | 4000 | `http://localhost:4000` |
+| Backend API | 8000 | `http://localhost:8000` |
+
+> **macOS note**: Use `127.0.0.1` instead of `localhost` for the admin dashboard to avoid AirPlay/AirTunes conflicts.
 
 ## Workspace requirements
 
 Your workspace folder **must contain**:
 
-- `run_local_stack.py` at the workspace root
+- `run_local_stack.py` at the workspace root (auto-generated, delegates to admin module)
 - `mqtt_dashboard_watch/` (repo folder, only if selected in Step 3)
 - `dashboard/` (repo folder, only if selected in Step 3)
 
@@ -67,37 +96,37 @@ If these are missing, `moovent-stack` fails fast with a clear error.
 
 ## Keeping your stack up to date
 
-Your workspace runner (`run_local_stack.py`) includes a local **Stack Admin UI** (runs on localhost) that can:
+The Admin Dashboard includes built-in update detection:
 
-- Detect repo updates (behind `origin/<branch>`)
-- Show an **Update available** banner
-- Run a **one-click update** (fast-forward only) and restart services for updated repos
+1. **Automatic check**: Dashboard periodically checks if `origin/<branch>` has new commits
+2. **Update banner**: Shows "Update available" with commit count
+3. **One-click update**: Click "Update now" to fast-forward pull and restart services
 
-Notes:
+### Update behavior
 
-- Updates are **safe by default**:
-  - Clean repos: can fast-forward (`git pull --ff-only`)
-  - Dirty repos: never auto-updated (you’ll be asked to commit/stash first)
+- **Clean repos**: Can fast-forward (`git pull --ff-only`)
+- **Dirty repos**: Never auto-updated (commit/stash first)
+- **Auto-pull on launch**: Optionally pulls updates when dashboard starts (see `CONFIGURATION.md`)
 
-See `help/CONFIGURATION.md` for the auto-update environment variables.
+## Stopping the stack
 
-## Local URLs (stable)
+From the Admin Dashboard:
+- Click **Stop** on individual services, or
+- Close the terminal running `moovent-stack`
 
-Ports are fixed to avoid collisions:
+From terminal:
 
-- **Moovent Stack UI (control)**: `http://127.0.0.1:7000` (macOS note: `localhost:7000` may be claimed by AirPlay/AirTunes)
-- **MQTT UI** (`mqtt-admin-dashboard`): `http://localhost:3000`
-- **Dashboard UI** (`dashboard` client): `http://localhost:4000`
-- **Backend API** (`mqtt_dashboard_watch`): `http://localhost:8000`
+```bash
+pkill -f moovent_stack.admin
+```
 
 ## Secrets model (dev vs prod)
 
 ### Local development (dev)
 
 - `moovent-stack` **does not write** `INFISICAL_CLIENT_ID` or `INFISICAL_CLIENT_SECRET` to disk in `.env`
-- Instead, it injects them into the process environment when launching `run_local_stack.py`
+- Instead, it injects them into the process environment when launching the admin module
 
 ### Production (Render)
 
 - Set `INFISICAL_CLIENT_ID` and `INFISICAL_CLIENT_SECRET` as **Render environment variables**
-

@@ -76,7 +76,7 @@ export MOOVENT_GITHUB_ACCESS_TOKEN="..."
 
 ## Runner / workspace configuration
 
-`moovent-stack` launches your local stack by running `run_local_stack.py`.
+`moovent-stack` launches your local stack by running the **Admin Dashboard** module.
 
 ### Option A (recommended): set workspace root
 
@@ -90,14 +90,35 @@ export MOOVENT_WORKSPACE_ROOT="$HOME/Documents/Moovent-stack"
 export MOOVENT_RUNNER_PATH="/full/path/to/run_local_stack.py"
 ```
 
-## Local stack auto-update (run_local_stack.py)
+## Admin Dashboard configuration
 
-The local stack runner can check for repo updates and auto-pull on launch.
+The Admin Dashboard runs on port **9000** by default.
 
-Behavior:
+```bash
+# Change the admin dashboard port (default: 9000)
+export MOOVENT_SETUP_PORT=9000
+```
+
+### Port scheme (stable)
+
+| Service | Default Port | Notes |
+|---------|--------------|-------|
+| Admin Dashboard | 9000 | Use `127.0.0.1` on macOS |
+| MQTT UI | 3000 | `mqtt-admin-dashboard` |
+| Dashboard UI | 4000 | `dashboard` client |
+| Backend API | 8000 | `mqtt_dashboard_watch` |
+
+## Local stack auto-update
+
+The Admin Dashboard can check for repo updates and auto-pull on launch.
+
+### Behavior
 
 - Auto-pull only happens on launch, and only when the repo is clean.
 - Dirty worktrees are never auto-pulled.
+- Updates use fast-forward only (`git pull --ff-only`).
+
+### Environment variables
 
 ```bash
 # Enable/disable update checks (default: true)
@@ -106,16 +127,24 @@ export MOOVENT_AUTOUPDATE_ENABLED=1
 # Enable/disable auto-pull on launch (default: true)
 export MOOVENT_AUTOUPDATE_AUTOPULL=1
 
-# How often the runner refreshes update status (seconds)
+# How often the dashboard refreshes update status (seconds, default: 3600)
 export MOOVENT_AUTOUPDATE_CHECK_INTERVAL_S=3600
+```
+
+### Remote mode
+
+When running the stack in "remote mode" (e.g., deployed to Render), auto-update is disabled:
+
+```bash
+export MOOVENT_REMOTE_MODE=1
 ```
 
 ## Setup server configuration
 
-The interactive setup runs a local HTTP server on port `7000` by default.
+The interactive setup runs a local HTTP server on port `9000` by default.
 
 ```bash
-export MOOVENT_SETUP_PORT=7000
+export MOOVENT_SETUP_PORT=9000
 ```
 
 If the port is already in use, change it and re-run.
@@ -158,7 +187,7 @@ Homebrew install root is provided by the environment when installed via Homebrew
 
 To keep secrets off disk in dev mode:
 
-- `moovent-stack` injects these into the environment when starting `run_local_stack.py`:
+- `moovent-stack` injects these into the environment when starting the admin module:
   - `INFISICAL_ENABLED=true`
   - `INFISICAL_CLIENT_ID`
   - `INFISICAL_CLIENT_SECRET`
@@ -179,3 +208,9 @@ Additionally, it writes **only non-sensitive scope keys** into:
 
 It does **not** write `INFISICAL_CLIENT_ID` or `INFISICAL_CLIENT_SECRET` into `.env`.
 
+## Log files
+
+| Log file | Purpose |
+|----------|---------|
+| `~/.moovent_stack.log` | Main launcher logs |
+| `~/.moovent_stack_admin.log` | Admin dashboard logs (when launched in background) |

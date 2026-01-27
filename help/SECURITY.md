@@ -25,9 +25,9 @@ On every run, the launcher performs an Infisical Universal Auth check:
 
 The cache file is written with restricted permissions where possible.
 
-## Secret handling (“secret zero”)
+## Secret handling ("secret zero")
 
-Infisical “secret zero” is the Universal Auth credentials:
+Infisical "secret zero" is the Universal Auth credentials:
 
 - `INFISICAL_CLIENT_ID`
 - `INFISICAL_CLIENT_SECRET`
@@ -37,7 +37,7 @@ Infisical “secret zero” is the Universal Auth credentials:
 ### Local development
 
 - `moovent-stack` injects `INFISICAL_CLIENT_ID` and `INFISICAL_CLIENT_SECRET` into the environment
-  **only at runtime** when launching `run_local_stack.py`.
+  **only at runtime** when launching the Admin Dashboard.
 - `moovent-stack` writes only non-sensitive Infisical scope keys to
   `<workspace>/mqtt_dashboard_watch/.env`.
 
@@ -55,6 +55,23 @@ The launcher uses a GitHub OAuth app to request a user token for:
 
 The access token is stored in `~/.moovent_stack_config.json` with restricted permissions where possible.
 
+## Network exposure
+
+### Admin Dashboard (port 9000)
+
+The Admin Dashboard binds to `127.0.0.1:9000` by default:
+
+- **Only accessible from localhost**
+- Cannot be accessed from other machines on the network
+- No authentication required (localhost-only assumption)
+
+### Child services
+
+Child services (MQTT UI, Dashboard, Backend) bind to `localhost` or `0.0.0.0` depending on their configuration:
+
+- Check individual service documentation for network exposure
+- For production, use proper firewalls and reverse proxies
+
 ## Optional self-clean on revoke
 
 If `MOOVENT_ACCESS_SELF_CLEAN=1` is set and access is denied, the launcher can attempt to:
@@ -64,9 +81,30 @@ If `MOOVENT_ACCESS_SELF_CLEAN=1` is set and access is denied, the launcher can a
 
 This is intended as a defense-in-depth measure for internal distribution.
 
+## Log files
+
+Log files may contain:
+
+- Service names and ports
+- File paths
+- Error messages
+
+Log files do **not** contain:
+
+- Infisical credentials
+- GitHub tokens
+- Database credentials
+
+Log file locations:
+
+| File | Contents |
+|------|----------|
+| `~/.moovent_stack.log` | Main launcher logs |
+| `~/.moovent_stack_admin.log` | Admin dashboard logs |
+
 ## Assumptions / non-goals
 
 - This is **not** a hardened security boundary against a malicious local admin.
 - The launcher assumes the workstation is trusted and not compromised.
 - The launcher does not implement disk encryption; rely on OS-level security controls.
-
+- The Admin Dashboard assumes localhost access is trusted (no auth).
