@@ -35,6 +35,7 @@ def main() -> int:
             # Setup already started the stack in the background; don't run again.
             log_info("app", "Stack was launched by setup flow; exiting setup process.")
             print("[runner] Stack is running. You can close this terminal.")
+            print("[runner] To stop all services: pkill -f run_local_stack.py")
             return 0
         host, client_id, client_secret = _resolve_infisical_settings()
         runner_path = _resolve_runner_path()

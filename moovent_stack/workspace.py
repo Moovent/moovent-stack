@@ -586,6 +586,7 @@ def main() -> int:
     print("[runner] Stack starting…", flush=True)
     for u in urls:
         print(f"[runner] Open: {u}", flush=True)
+    print("[runner] To stop all services: pkill -f run_local_stack.py", flush=True)
 
     # Keep alive until interrupted.
     while True:

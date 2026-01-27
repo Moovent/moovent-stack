@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.31
+- UX: show `pkill -f run_local_stack.py` command to stop all services after stack starts.
+
 ## 0.4.30
 - Change: standardize port scheme to avoid collisions:
   - Setup UI: `7000` (was `9010`)
