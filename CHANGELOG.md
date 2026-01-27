@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.18
+- Add: file-based logging to `~/.moovent_stack.log` for support diagnostics.
+- Add: log path shown in error messages so users can share logs with support.
+- Add: detailed Infisical auth failure logging.
+
 ## 0.4.17
 - Fix: generated runner now installs dependencies and prints startup steps for clearer logs.
 

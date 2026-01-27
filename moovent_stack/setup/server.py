@@ -36,6 +36,7 @@ from ..infisical import (
     _fetch_scope_display_names,
     _resolve_infisical_settings,
 )
+from ..log import get_log_path, log_error, log_info
 from ..storage import _load_config, _save_config
 from ..workspace import (
     _clone_or_update_repo,
@@ -425,12 +426,15 @@ def _run_setup_server() -> None:
             if self.path == "/save-step1":
                 client_id = (form.get("client_id", [""])[0] or "").strip()
                 client_secret = (form.get("client_secret", [""])[0] or "").strip()
+                log_info("setup", f"Step 1: validating Infisical credentials (id={client_id[:8]}...)")
                 if not client_id:
+                    log_error("setup", "Step 1 failed: Client ID is required")
                     self._send(
                         200, _setup_step1_html("Infisical Client ID is required.")
                     )
                     return
                 if not client_secret:
+                    log_error("setup", "Step 1 failed: Client Secret is required")
                     self._send(
                         200, _setup_step1_html("Infisical Client Secret is required.")
                     )
@@ -441,12 +445,17 @@ def _run_setup_server() -> None:
                     host, client_id, client_secret
                 )
                 if not allowed:
+                    error_msg = (
+                        f"Infisical access check failed. Reason: {reason}. "
+                        "Ensure your Machine Identity has access to the required project."
+                    )
+                    log_error("setup", f"Step 1 failed: {error_msg}")
+                    log_info("setup", f"Detailed logs at: {get_log_path()}")
                     self._send(
                         200,
                         _setup_step1_html(
-                            "Infisical access check failed. "
-                            f"Reason: {reason}. "
-                            "Ensure your Machine Identity has access to the required project.",
+                            f"{error_msg}<br/><br/>"
+                            f"<small>See detailed log: <code>{get_log_path()}</code></small>"
                         ),
                     )
                     return
@@ -475,10 +484,12 @@ def _run_setup_server() -> None:
                 # Auto-populate GitHub OAuth if found in Infisical
                 if github_id:
                     config_data["github_client_id"] = github_id
+                    log_info("setup", "GitHub OAuth credentials fetched from Infisical")
                 if github_secret:
                     config_data["github_client_secret"] = github_secret
 
                 _save_config(config_data)
+                log_info("setup", "Step 1 complete: Infisical credentials validated and saved")
                 self.send_response(302)
                 self.send_header("Location", "/step2")
                 self.end_headers()
@@ -551,6 +562,7 @@ def _run_setup_server() -> None:
                     def _worker() -> None:
                         try:
                             root = Path(workspace_root).expanduser()
+                            log_info("setup", f"Install starting: workspace={root}")
                             install.update(
                                 5,
                                 "Preparing",
@@ -561,6 +573,7 @@ def _run_setup_server() -> None:
 
                             # Only clone selected repos.
                             if install_mqtt:
+                                log_info("setup", f"Cloning mqtt_dashboard_watch (branch={mqtt_branch})")
                                 install.update(
                                     10,
                                     "Downloading",
@@ -574,6 +587,7 @@ def _run_setup_server() -> None:
                                     root / "mqtt_dashboard_watch",
                                     token,
                                 )
+                                log_info("setup", "mqtt_dashboard_watch cloned successfully")
                                 install.update(
                                     60,
                                     "Downloading",
@@ -582,6 +596,7 @@ def _run_setup_server() -> None:
                                 )
 
                             if install_dashboard:
+                                log_info("setup", f"Cloning dashboard (branch={dashboard_branch})")
                                 install.update(
                                     65,
                                     "Downloading",
@@ -595,6 +610,7 @@ def _run_setup_server() -> None:
                                     root / "dashboard",
                                     token,
                                 )
+                                log_info("setup", "dashboard cloned successfully")
                                 install.update(90, "Downloading", "dashboard ready.", "")
 
                             install.update(
@@ -604,6 +620,7 @@ def _run_setup_server() -> None:
                                 "",
                             )
                             _inject_infisical_env(root)
+                            log_info("setup", "Infisical env injected")
 
                             install.update(
                                 94,
@@ -612,6 +629,7 @@ def _run_setup_server() -> None:
                                 "",
                             )
                             _ensure_workspace_runner(root)
+                            log_info("setup", f"Workspace runner created: {root / 'run_local_stack.py'}")
 
                             install.update(
                                 96,
@@ -631,8 +649,10 @@ def _run_setup_server() -> None:
                                 }
                             )
 
+                            log_info("setup", "Install complete")
                             install.finish("Starting Moovent Stack…")
                         except Exception as exc:
+                            log_error("setup", f"Install failed: {exc}")
                             install.fail(f"Download failed: {exc}")
 
                     threading.Thread(target=_worker, daemon=True).start()

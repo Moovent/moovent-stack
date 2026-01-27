@@ -25,6 +25,7 @@ from .config import (
     REQUIRED_INFISICAL_PROJECT_ID,
     _env_bool,
 )
+from .log import log_debug, log_error, log_info
 from .storage import _load_config, _save_config
 
 
@@ -134,11 +135,14 @@ def _infisical_login(host: str, client_id: str, client_secret: str) -> Optional[
     req = Request(login_url, data=body, method="POST")
     req.add_header("Content-Type", "application/json")
 
+    log_debug("infisical", f"POST {login_url} (universal-auth login)")
+
     try:
         with urlopen(req, timeout=ACCESS_REQUEST_TIMEOUT_S) as resp:
             raw = resp.read().decode("utf-8").strip()
             data = json.loads(raw) if raw else {}
             if not isinstance(data, dict):
+                log_error("infisical", f"Login response not a dict: {raw[:200]}")
                 return None
             token = str(
                 data.get("accessToken")
@@ -146,8 +150,23 @@ def _infisical_login(host: str, client_id: str, client_secret: str) -> Optional[
                 or data.get("access_token")
                 or ""
             ).strip()
+            if token:
+                log_info("infisical", "Universal Auth login successful")
+            else:
+                log_error("infisical", f"No token in login response: {raw[:200]}")
             return token or None
-    except Exception:
+    except HTTPError as err:
+        try:
+            body = err.read().decode("utf-8", errors="replace")
+        except Exception:
+            body = ""
+        log_error(
+            "infisical",
+            f"Login failed: HTTP {err.code} {err.reason} body={body[:300]}",
+        )
+        return None
+    except Exception as exc:
+        log_error("infisical", f"Login failed: {exc.__class__.__name__}: {exc}")
         return None
 
 
@@ -211,13 +230,26 @@ def _fetch_infisical_access(
     - allowed: None if request failed (network/server)
     - reason: failure reason for logging
     """
+    log_info("infisical", f"Validating access: host={host} client_id={client_id[:8]}...")
+
     project_id, environment, secret_path = _resolve_infisical_scope()
+    log_debug(
+        "infisical",
+        f"Scope: project={project_id} env={environment} path={secret_path}",
+    )
+
     mismatch = _required_project_id_mismatch_reason()
     if mismatch:
+        log_error("infisical", f"Access denied: {mismatch}")
         return False, mismatch
 
     token = _infisical_login(host, client_id, client_secret)
     if not token:
+        log_error(
+            "infisical",
+            "Access denied: auth_failed (could not obtain access token). "
+            "Check that Client ID and Secret are correct and the Machine Identity exists.",
+        )
         return False, "auth_failed"
 
     # Enforce project access by listing secrets for the required project.
@@ -238,16 +270,30 @@ def _fetch_infisical_access(
     secrets_req.add_header("Authorization", f"Bearer {token}")
     secrets_req.add_header("Accept", "application/json")
 
+    log_debug("infisical", f"GET {secrets_url}")
+
     try:
         with urlopen(secrets_req, timeout=ACCESS_REQUEST_TIMEOUT_S) as resp:
             _ = resp.read()  # intentionally ignored
+            log_info("infisical", "Access validated successfully")
             return True, ""
     except HTTPError as err:
+        try:
+            body = err.read().decode("utf-8", errors="replace")
+        except Exception:
+            body = ""
+        reason = f"http_{err.code}"
+        log_error(
+            "infisical",
+            f"Access denied: {reason} ({err.reason}) body={body[:300]}",
+        )
         if 400 <= err.code < 500:
-            return False, f"http_{err.code}"
-        return None, f"http_{err.code}"
+            return False, reason
+        return None, reason
     except Exception as exc:
-        return None, f"request_failed:{exc.__class__.__name__}"
+        reason = f"request_failed:{exc.__class__.__name__}"
+        log_error("infisical", f"Access check failed: {reason} ({exc})")
+        return None, reason
 
 
 def _debug_enabled() -> bool:
