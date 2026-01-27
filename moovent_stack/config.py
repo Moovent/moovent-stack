@@ -30,6 +30,10 @@ ACCESS_ENV_CACHE_PATH = "MOOVENT_ACCESS_CACHE_PATH"
 WORKSPACE_ENV_ROOT = "MOOVENT_WORKSPACE_ROOT"
 RUNNER_ENV_PATH = "MOOVENT_RUNNER_PATH"
 
+# Optional: which Infisical secrets to export into the local stack env at runtime.
+# Format: comma-separated keys (e.g. "BROKER,MONGO_URI,...").
+INFISICAL_EXPORT_KEYS_ENV = "MOOVENT_INFISICAL_EXPORT_KEYS"
+
 SETUP_ENV_NONINTERACTIVE = "MOOVENT_SETUP_NONINTERACTIVE"
 SETUP_ENV_PORT = "MOOVENT_SETUP_PORT"
 
@@ -51,6 +55,21 @@ REQUIRED_INFISICAL_ORG_ID = "20256abe-9337-498a-af56-d08d6e762d29"
 REQUIRED_INFISICAL_PROJECT_ID = "b33db90d-cc5b-464e-b58c-a09e7328e83d"
 DEFAULT_INFISICAL_ENVIRONMENT = "dev"
 DEFAULT_INFISICAL_SECRET_PATH = "/"
+
+# Default env keys required by mqtt_dashboard_watch backend at import time.
+# These are exported from Infisical by moovent-stack at runtime (kept off disk).
+DEFAULT_INFISICAL_EXPORT_KEYS = (
+    "BROKER",
+    "MQTT_USER",
+    "MQTT_PASS",
+    "MQTT_PORT",
+    "MONGO_URI",
+    "DB_NAME",
+    "COL_DEVICES",
+    "COL_PARKINGS",
+    "COL_TOTALS",
+    "COL_BUCKETS",
+)
 
 
 def _get_version() -> str:

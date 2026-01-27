@@ -285,16 +285,18 @@ def main() -> int:
         print("[runner] npm not found in PATH", file=sys.stderr)
         return 2
 
-    procs: list[subprocess.Popen] = []
+    # Track running child processes.
+    # Each entry: (name, process, critical)
+    procs: list[tuple[str, subprocess.Popen, bool]] = []
 
     def _stop_all() -> None:
-        for p in procs:
+        for _name, p, _critical in procs:
             try:
                 p.send_signal(signal.SIGTERM)
             except Exception:
                 continue
         time.sleep(0.8)
-        for p in procs:
+        for _name, p, _critical in procs:
             try:
                 p.kill()
             except Exception:
@@ -313,20 +315,48 @@ def main() -> int:
     if mqtt_exists:
         py_cmd = _ensure_python_venv(mqtt_repo)
         _ensure_node_deps(mqtt_repo / "mqtt-admin-dashboard")
+        # mqtt_dashboard_watch backend requires these env vars at import-time.
+        required = [
+            "BROKER",
+            "MQTT_USER",
+            "MQTT_PASS",
+            "MONGO_URI",
+            "DB_NAME",
+            "COL_DEVICES",
+            "COL_PARKINGS",
+            "COL_TOTALS",
+            "COL_BUCKETS",
+        ]
+        missing = [k for k in required if not str(os.environ.get(k, "")).strip()]
         # mqtt backend
         backend_env = dict(os.environ)
         backend_env.setdefault("PORT", "8000")
         backend_env["ALLOW_START_WITHOUT_MQTT"] = "true"
-        procs.append(
-            _popen([py_cmd, "src/main.py"], cwd=mqtt_repo, env=backend_env)
-        )
+        if missing:
+            print(
+                "[runner] mqtt backend not started (missing env): "
+                + ", ".join(missing),
+                file=sys.stderr,
+            )
+        else:
+            procs.append(
+                (
+                    "mqtt-backend",
+                    _popen([py_cmd, "src/main.py"], cwd=mqtt_repo, env=backend_env),
+                    False,
+                )
+            )
 
         # mqtt admin dashboard (vite)
         procs.append(
-            _popen(
-                ["npm", "run", "dev"],
-                cwd=mqtt_repo / "mqtt-admin-dashboard",
-                env=dict(os.environ),
+            (
+                "mqtt-admin-dashboard",
+                _popen(
+                    ["npm", "run", "dev"],
+                    cwd=mqtt_repo / "mqtt-admin-dashboard",
+                    env=dict(os.environ),
+                ),
+                True,
             )
         )
         urls.append("http://localhost:3000")
@@ -338,18 +368,26 @@ def main() -> int:
         server_env = dict(os.environ)
         server_env["PORT"] = server_env.get("PORT", "5001")
         procs.append(
-            _popen(
-                ["npm", "run", "dev"],
-                cwd=dash_repo / "server",
-                env=server_env,
+            (
+                "dashboard-server",
+                _popen(
+                    ["npm", "run", "dev"],
+                    cwd=dash_repo / "server",
+                    env=server_env,
+                ),
+                False,
             )
         )
         dash_port = "3000" if not mqtt_exists else "5173"
         procs.append(
-            _popen(
-                ["npm", "run", "dev", "--", "--port", dash_port],
-                cwd=dash_repo / "client",
-                env=dict(os.environ),
+            (
+                "dashboard-client",
+                _popen(
+                    ["npm", "run", "dev", "--", "--port", dash_port],
+                    cwd=dash_repo / "client",
+                    env=dict(os.environ),
+                ),
+                True,
             )
         )
         urls.insert(0, f"http://localhost:{dash_port}")
@@ -360,11 +398,16 @@ def main() -> int:
 
     # Keep alive until interrupted.
     while True:
-        for p in procs:
+        for name, p, critical in list(procs):
             if p.poll() is not None:
-                print("[runner] A service exited. Stopping stack.", file=sys.stderr)
-                _stop_all()
-                return 1
+                code = p.returncode
+                print(f"[runner] Service exited: {name} (code={code})", file=sys.stderr)
+                if critical:
+                    print("[runner] A critical service exited. Stopping stack.", file=sys.stderr)
+                    _stop_all()
+                    return 1
+                # Non-critical: keep stack running.
+                procs.remove((name, p, critical))
         time.sleep(0.5)
 
 

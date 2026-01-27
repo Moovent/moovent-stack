@@ -165,6 +165,14 @@ To keep secrets off disk in dev mode:
   - `INFISICAL_HOST` (if set)
   - `INFISICAL_PROJECT_ID`, `INFISICAL_ENVIRONMENT`, `INFISICAL_SECRET_PATH`
 
+- Additionally, `moovent-stack` exports required stack secrets (like `BROKER`, `MONGO_URI`, etc.)
+  from Infisical **at runtime** into the local stack environment (still not written to disk).
+  You can override which keys are exported:
+
+```bash
+export MOOVENT_INFISICAL_EXPORT_KEYS="BROKER,MQTT_USER,MQTT_PASS,MONGO_URI,DB_NAME,COL_DEVICES,COL_PARKINGS,COL_TOTALS,COL_BUCKETS"
+```
+
 Additionally, it writes **only non-sensitive scope keys** into:
 
 - `<workspace>/mqtt_dashboard_watch/.env`

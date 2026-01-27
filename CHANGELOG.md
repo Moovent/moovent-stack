@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.24
+- Fix: export required mqtt_dashboard_watch env (BROKER/MONGO/etc.) from Infisical at runtime so backend doesn't crash.
+- Fix: runner no longer stops the UI when the mqtt backend exits.
+
 ## 0.4.23
 - Fix: auto-repair corrupted Vite installs by detecting missing chunk files and doing a clean npm reinstall.
 

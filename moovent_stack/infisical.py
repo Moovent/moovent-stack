@@ -231,6 +231,55 @@ def _fetch_infisical_secrets(
         return {}
 
 
+def _fetch_infisical_env_exports(
+    host: str,
+    client_id: str,
+    client_secret: str,
+    keys: list[str],
+) -> dict[str, str]:
+    """
+    Fetch a subset of secrets from Infisical for exporting into the local stack env.
+
+    Purpose:
+      `mqtt_dashboard_watch` currently requires several env vars at import-time
+      (e.g. BROKER/MONGO_URI/COL_*). We export these from Infisical at runtime
+      so users do not have to create local `.env` files with secrets.
+
+    Security:
+      - Values are returned to the caller and should be passed via environment only.
+      - Do NOT log secret values.
+    """
+    wanted = [str(k).strip() for k in keys if str(k).strip()]
+    if not wanted:
+        return {}
+
+    token = _infisical_login(host, client_id, client_secret)
+    if not token:
+        log_error("infisical", "Unable to export secrets: login failed")
+        return {}
+
+    project_id, environment, secret_path = _resolve_infisical_scope()
+    secrets = _fetch_infisical_secrets(host, token, project_id, environment, secret_path)
+    if not secrets:
+        log_error("infisical", "Unable to export secrets: secrets query returned empty")
+        return {}
+
+    exported: dict[str, str] = {}
+    missing: list[str] = []
+    for key in wanted:
+        val = str(secrets.get(key) or "").strip()
+        if val:
+            exported[key] = val
+        else:
+            missing.append(key)
+
+    log_info("infisical", f"Exporting {len(exported)} secrets to runtime env")
+    if missing:
+        # Missing secrets can be normal for partial installs; log keys only.
+        log_error("infisical", f"Missing secrets in Infisical: {', '.join(missing)}")
+    return exported
+
+
 def _fetch_infisical_access(
     host: str, client_id: str, client_secret: str
 ) -> tuple[Optional[bool], str]:
