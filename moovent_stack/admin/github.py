@@ -268,6 +268,8 @@ def git_connect_repo(repo: Path, repo_full_name: str, branch: str) -> tuple[bool
 class GitHubState:
     """
     Thread-safe state for GitHub OAuth and cached data.
+    
+    Automatically loads saved token from config on init.
     """
 
     def __init__(self) -> None:
@@ -278,6 +280,20 @@ class GitHubState:
         self._repos: list[dict[str, object]] = []
         self._repos_fetched_at: float = 0
         self._branches_cache: dict[str, tuple[float, list[str]]] = {}
+        
+        # Load saved token from config (set by setup)
+        self._load_from_config()
+    
+    def _load_from_config(self) -> None:
+        """Load GitHub token from saved config file."""
+        cfg = load_config()
+        token = str(cfg.get("github_access_token", "")).strip()
+        if token:
+            self._access_token = token
+            # Also load cached user info if available
+            login = str(cfg.get("github_login", "")).strip()
+            if login:
+                self._user = {"login": login}
 
     @property
     def oauth_state(self) -> Optional[str]:

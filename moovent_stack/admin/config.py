@@ -47,7 +47,8 @@ GITHUB_BRANCHES_CACHE_TTL_S = 30.0
 # ---------------------------------------------------------------------------
 # Config / cache files
 # ---------------------------------------------------------------------------
-CONFIG_FILE_PATH = Path.home() / ".moovent_stack_admin_config.json"
+# Use the SAME config file as setup so credentials carry over
+CONFIG_FILE_PATH = Path.home() / ".moovent_stack_config.json"
 ACCESS_CACHE_PATH_DEFAULT = Path.home() / ".moovent_stack_access.json"
 
 # ---------------------------------------------------------------------------
