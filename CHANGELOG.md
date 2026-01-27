@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.32
+- UX: "Open Dashboard" button now waits for dashboard to be ready before enabling.
+- Fix: default dashboard URL changed from 5173 to 3000 in setup state.
+
 ## 0.4.31
 - UX: show `pkill -f run_local_stack.py` command to stop all services after stack starts.
 

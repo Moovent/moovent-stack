@@ -120,7 +120,7 @@ def _run_setup_server() -> bool:
             self.message = "Preparing your workspace…"
             self.detail = ""
             self.error = ""
-            self.dashboard_url = "http://localhost:5173"
+            self.dashboard_url = "http://localhost:3000"
 
         def reset(self, dashboard_url: str) -> None:
             with self._lock:
@@ -578,9 +578,9 @@ def _run_setup_server() -> bool:
 
                 try:
                     # Choose which UI to open at the end.
-                    # Assumption:
-                    # - `dashboard` repo runs at http://localhost:5173 (vite).
-                    # - mqtt admin dashboard runs at http://localhost:3000 (vite).
+                    # Port scheme:
+                    # - mqtt-admin-dashboard: http://localhost:3000
+                    # - dashboard (standalone): http://localhost:4000 (when both installed)
                     dashboard_url = "http://localhost:3000"
 
                     # If an install is already running, just show the installing page.
