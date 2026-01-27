@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.21
+- UX: grey out Step 2 Continue button until GitHub is connected.
+- Fix: stack runner now logs to ~/.moovent_stack_runner.log for debugging.
+- Fix: increased startup wait to 5s for npm install to complete.
+
 ## 0.4.20
 - Fix: start the stack automatically after setup completes (no more "page not found" when clicking Open Dashboard).
 

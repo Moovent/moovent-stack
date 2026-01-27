@@ -670,21 +670,25 @@ def _run_setup_server() -> bool:
                                     if v and not env.get(k):
                                         env[k] = v
                                 # Start detached so it survives setup server exit.
-                                # Use Popen with start_new_session on Unix.
+                                # Log output to a file for debugging.
                                 log_info("setup", f"Launching stack: {runner_path}")
+                                stack_log_path = Path.home() / ".moovent_stack_runner.log"
+                                log_info("setup", f"Stack output log: {stack_log_path}")
+                                # Open file without context manager so it stays open for Popen
+                                stack_log = open(stack_log_path, "w")
                                 sp.Popen(
                                     [sys.executable, str(runner_path)],
                                     env=env,
                                     start_new_session=True,
-                                    stdout=sp.DEVNULL,
-                                    stderr=sp.DEVNULL,
+                                    stdout=stack_log,
+                                    stderr=sp.STDOUT,
                                     stdin=sp.DEVNULL,
                                 )
                                 log_info("setup", "Stack launched in background")
                                 state.stack_launched = True
-                                # Give services a moment to bind ports.
+                                # Give services more time to install deps and start.
                                 import time
-                                time.sleep(2)
+                                time.sleep(5)
 
                             log_info("setup", "Install complete")
                             install.finish("Moovent Stack is running!")

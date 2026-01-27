@@ -300,12 +300,15 @@ def _setup_step2_html(
       <div class="pt-2">
         <button
           type="submit"
-          class="py-3 px-4 w-full inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2"
+          id="step2-continue-btn"
+          {"disabled" if not github_login else ""}
+          class="py-3 px-4 w-full inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent text-white focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed {"hover:opacity-90" if github_login else ""}"
           style="background-color: {MOOVENT_ACCENT}; --tw-ring-color: {MOOVENT_ACCENT};"
         >
           Continue
           <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"/></svg>
         </button>
+        {"" if github_login else '<p class="mt-2 text-xs text-center text-gray-500">Connect GitHub above to continue</p>'}
       </div>
     </form>
     """
