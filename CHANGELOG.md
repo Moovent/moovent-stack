@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.19
+- Fix: set a browser-like User-Agent for Infisical API calls (prevents Cloudflare 1010 blocks).
+
 ## 0.4.18
 - Add: file-based logging to `~/.moovent_stack.log` for support diagnostics.
 - Add: log path shown in error messages so users can share logs with support.

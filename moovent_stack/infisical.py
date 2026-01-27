@@ -29,6 +29,15 @@ from .log import log_debug, log_error, log_info
 from .storage import _load_config, _save_config
 
 
+# Purpose: Cloudflare can block default Python urllib User-Agent (error 1010).
+# We use a browser-like UA to avoid being fingerprinted as a bot.
+_DEFAULT_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/120.0.0.0 Safari/537.36"
+)
+
+
 def _normalize_infisical_host(raw: Optional[str]) -> str:
     """Normalize Infisical host and ensure https:// is present."""
     value = (raw or "").strip()
@@ -134,6 +143,8 @@ def _infisical_login(host: str, client_id: str, client_secret: str) -> Optional[
     body = json.dumps(payload).encode("utf-8")
     req = Request(login_url, data=body, method="POST")
     req.add_header("Content-Type", "application/json")
+    req.add_header("Accept", "application/json")
+    req.add_header("User-Agent", _DEFAULT_USER_AGENT)
 
     log_debug("infisical", f"POST {login_url} (universal-auth login)")
 
@@ -196,6 +207,7 @@ def _fetch_infisical_secrets(
     secrets_req = Request(secrets_url, method="GET")
     secrets_req.add_header("Authorization", f"Bearer {token}")
     secrets_req.add_header("Accept", "application/json")
+    secrets_req.add_header("User-Agent", _DEFAULT_USER_AGENT)
 
     try:
         with urlopen(secrets_req, timeout=ACCESS_REQUEST_TIMEOUT_S) as resp:
@@ -269,6 +281,7 @@ def _fetch_infisical_access(
     secrets_req = Request(secrets_url, method="GET")
     secrets_req.add_header("Authorization", f"Bearer {token}")
     secrets_req.add_header("Accept", "application/json")
+    secrets_req.add_header("User-Agent", _DEFAULT_USER_AGENT)
 
     log_debug("infisical", f"GET {secrets_url}")
 
@@ -323,6 +336,7 @@ def _fetch_json_with_fallback(
         req = Request(url, method="GET")
         req.add_header("Authorization", f"Bearer {token}")
         req.add_header("Accept", "application/json")
+        req.add_header("User-Agent", _DEFAULT_USER_AGENT)
         try:
             with urlopen(req, timeout=ACCESS_REQUEST_TIMEOUT_S) as resp:
                 raw = resp.read().decode("utf-8", errors="replace").strip()
