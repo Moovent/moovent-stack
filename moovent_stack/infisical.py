@@ -293,7 +293,16 @@ def _fetch_infisical_env_exports(
         if key == "MONGO_URI":
             return _first_nonempty("MONGO_URI", "MONGODB_URI", "MONGO_URL")
         if key == "DB_NAME":
-            return _first_nonempty("DB_NAME", "MONGO_DB", "MONGO_DATABASE")
+            direct = _first_nonempty("DB_NAME", "MONGO_DB", "MONGO_DATABASE")
+            if direct:
+                return direct
+            # Best-effort derive DB name from URI path: mongodb+srv://.../<db>?...
+            uri = _first_nonempty("MONGO_URI", "MONGODB_URI", "MONGO_URL")
+            if uri and "/" in uri:
+                tail = uri.rsplit("/", 1)[-1].split("?", 1)[0].strip()
+                if tail and "@" not in tail and ":" not in tail:
+                    return tail
+            return "mqtt_dashboard"
         if key == "MQTT_PORT":
             return _first_nonempty("MQTT_PORT")
         if key == "COL_DEVICES":

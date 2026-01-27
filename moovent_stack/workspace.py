@@ -378,8 +378,9 @@ def _ensure_node_deps(path: Path) -> None:
       ERR_MODULE_NOT_FOUND ... vite/dist/node/chunks/dep-XXXX.js
 
     Logic:
-      - Prefer `npm ci` when `package-lock.json` exists (clean + deterministic).
-      - If `node_modules` exists but looks corrupted, delete it and reinstall.
+      - Never run `npm ci` on every start (it deletes node_modules).
+      - If `node_modules` is missing or looks corrupted, do a clean reinstall.
+      - Otherwise, keep existing deps (fast + avoids breaking a running dev server).
     \"\"\"
     lock = path / "package-lock.json"
     node_modules = path / "node_modules"
@@ -403,12 +404,29 @@ def _ensure_node_deps(path: Path) -> None:
                 return False
         return True
 
-    if node_modules.exists() and not _vite_is_healthy():
-        print(
-            "[runner] Detected corrupted node_modules (vite chunks mismatch). "
-            "Doing a clean reinstall...",
-            flush=True,
-        )
+    needs_clean = (not node_modules.exists()) or (node_modules.exists() and not _vite_is_healthy())
+    if not needs_clean:
+        return
+
+    print("[runner] Ensuring no Vite is running before reinstall…", flush=True)
+    # Best-effort kill any vite processes that point at this project (prevents ENOENT during npm ci).
+    if shutil.which("ps") is not None:
+        try:
+            out = subprocess.check_output(["ps", "ax", "-o", "pid=,command="], text=True)
+        except Exception:
+            out = ""
+        needle = str(path / "node_modules" / ".bin" / "vite")
+        for line in out.splitlines():
+            if needle in line:
+                try:
+                    pid = int(line.strip().split(None, 1)[0])
+                    os.kill(pid, signal.SIGTERM)
+                except Exception:
+                    pass
+        time.sleep(0.5)
+
+    if node_modules.exists():
+        print("[runner] Cleaning node_modules…", flush=True)
         shutil.rmtree(node_modules, ignore_errors=True)
 
     mode = "ci" if lock.exists() else "install"

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.28
+- Fix: stop running npm ci on every start (prevents node_modules disappearing under Vite).
+- Fix: derive DB_NAME from MONGO_URI when exporting runtime env from Infisical.
+
 ## 0.4.27
 - Fix: stop stray Vite processes from previous runs and enforce strict ports (keeps dashboard URL stable).
 - Fix: add safe local defaults for missing MQTT/Mongo env so backend doesn't crash on missing secrets.
