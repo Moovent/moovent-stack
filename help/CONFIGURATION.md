@@ -112,10 +112,10 @@ export MOOVENT_AUTOUPDATE_CHECK_INTERVAL_S=3600
 
 ## Setup server configuration
 
-The interactive setup runs a local HTTP server.
+The interactive setup runs a local HTTP server on port `7000` by default.
 
 ```bash
-export MOOVENT_SETUP_PORT=9010
+export MOOVENT_SETUP_PORT=7000
 ```
 
 If the port is already in use, change it and re-run.

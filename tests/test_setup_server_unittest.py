@@ -35,8 +35,8 @@ class TestWorkspaceRunnerGeneration(unittest.TestCase):
             root = Path(tmpdir)
             workspace._ensure_workspace_runner(root)
             content = (root / "run_local_stack.py").read_text(encoding="utf-8")
-            # Dashboard-only runs on port 3000 when mqtt isn't installed.
-            self.assertIn('dash_port = "3000" if not mqtt_exists else "5173"', content)
+            # Dashboard-only runs on port 3000; when mqtt is also installed, dashboard runs on 4000.
+            self.assertIn('dash_port = "3000" if not mqtt_exists else "4000"', content)
 
 
 class TestWorkspacePatches(unittest.TestCase):

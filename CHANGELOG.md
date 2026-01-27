@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.30
+- Change: standardize port scheme to avoid collisions:
+  - Setup UI: `7000` (was `9010`)
+  - mqtt-admin-dashboard: `3000` (unchanged)
+  - dashboard client: `4000` (was `5173` when both repos installed)
+  - Backend API: `8000` (unchanged)
+
 ## 0.4.29
 - UI: add Moovent favicon to setup pages (96x96 PNG, ICO, and Apple touch icon).
 

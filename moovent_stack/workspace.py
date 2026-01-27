@@ -270,7 +270,7 @@ def _kill_stray_vite(root: Path, ports: list[int]) -> None:
 
     Why:
       Setup can start the stack in the background; repeated installs can leave
-      old Vite processes running on 3000/3001/3002, causing port drift and
+      old Vite processes running on 3000/4000, causing port drift and
       white screens / stale optimize deps.
 
     Safety:
@@ -498,7 +498,7 @@ def main() -> int:
 
     if mqtt_exists:
         _apply_mqtt_env_aliases()
-        _kill_stray_vite(root, [3000, 3001, 3002])
+        _kill_stray_vite(root, [3000, 4000])
         py_cmd = _ensure_python_venv(mqtt_repo)
         admin_dir = mqtt_repo / "mqtt-admin-dashboard"
         _ensure_node_deps(admin_dir)
@@ -568,11 +568,8 @@ def main() -> int:
                 False,
             )
         )
-        dash_port = "3000" if not mqtt_exists else "5173"
-        if dash_port == "3000":
-            _kill_stray_vite(root, [3000, 3001, 3002])
-        else:
-            _kill_stray_vite(root, [5173])
+        dash_port = "3000" if not mqtt_exists else "4000"
+        _kill_stray_vite(root, [3000, 4000])
         procs.append(
             (
                 "dashboard-client",

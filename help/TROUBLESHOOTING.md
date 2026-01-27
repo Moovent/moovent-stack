@@ -9,7 +9,7 @@ You’ll see:
 Fix by changing the port:
 
 ```bash
-export MOOVENT_SETUP_PORT=9011
+export MOOVENT_SETUP_PORT=7001
 moovent-stack
 ```
 
@@ -80,11 +80,11 @@ Behavior:
 Behavior:
 
 - `http://localhost:3000` always points to the MQTT admin UI when it’s installed.
-- The main dashboard client runs on `http://localhost:5173` when both repos are installed.
+- The main dashboard client runs on `http://localhost:4000` when both repos are installed.
 
 Fix:
 
-- Open `http://localhost:5173` for the dashboard client.
+- Open `http://localhost:4000` for the dashboard client.
 
 ## GitHub connect issues (403 / scopes / SSO)
 
