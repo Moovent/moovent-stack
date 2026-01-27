@@ -4,8 +4,6 @@ Main orchestration for moovent-stack.
 
 from __future__ import annotations
 
-import os
-import subprocess
 import sys
 from pathlib import Path
 
@@ -13,8 +11,9 @@ from .access import ensure_access_or_exit
 from .config import _setup_noninteractive, _setup_port
 from .infisical import _resolve_infisical_settings
 from .log import get_log_path, log_error, log_info, log_startup
-from .runner import _run_local_stack
+from .runner import _build_runner_env
 from .setup.server import _run_setup_server
+from .storage import _load_config
 from .workspace import _resolve_runner_path, _validate_runner_path
 
 
@@ -35,28 +34,11 @@ def main() -> int:
             return 2
         stack_launched = _run_setup_server()
         if stack_launched:
-            # Setup already started the stack in the background; don't run again.
+            # Setup already started the admin dashboard in the background.
             log_info("app", "Stack was launched by setup flow; exiting setup process.")
-            # Start a lightweight Moovent Stack UI on the setup port (9000 by default).
-            # This is a separate process so the user can close the terminal.
-            try:
-                ui_log_path = Path.home() / ".moovent_stack_ui.log"
-                ui_log = open(ui_log_path, "w")  # noqa: SIM115
-                env = os.environ.copy()
-                subprocess.Popen(  # noqa: S603
-                    [sys.executable, "-m", "moovent_stack.control"],
-                    env=env,
-                    start_new_session=True,
-                    stdout=ui_log,
-                    stderr=subprocess.STDOUT,
-                    stdin=subprocess.DEVNULL,
-                )
-                log_info("app", f"Moovent Stack UI launched on port {_setup_port()} (log: {ui_log_path})")
-            except Exception as exc:
-                log_error("app", f"Unable to start Moovent Stack UI: {exc}")
             print("[runner] Stack is running. You can close this terminal.")
-            print(f"[runner] Moovent Stack UI: http://localhost:{_setup_port()}/")
-            print("[runner] To stop all services: pkill -f run_local_stack.py")
+            print(f"[runner] Moovent Stack Admin: http://127.0.0.1:{_setup_port()}/")
+            print("[runner] To stop all services: pkill -f moovent_stack.admin")
             return 0
         host, client_id, client_secret = _resolve_infisical_settings()
         runner_path = _resolve_runner_path()
@@ -79,22 +61,26 @@ def main() -> int:
     # Authenticate via Infisical Universal Auth before running the stack.
     log_info("app", "Authenticating with Infisical...")
     ensure_access_or_exit(host, client_id, client_secret)
-    # Start the Moovent Stack UI in the background so it's always available on port 9000.
-    # If it's already running, the child will exit quickly with "address already in use".
-    try:
-        ui_log_path = Path.home() / ".moovent_stack_ui.log"
-        ui_log = open(ui_log_path, "w")  # noqa: SIM115
-        env = os.environ.copy()
-        subprocess.Popen(  # noqa: S603
-            [sys.executable, "-m", "moovent_stack.control"],
-            env=env,
-            start_new_session=True,
-            stdout=ui_log,
-            stderr=subprocess.STDOUT,
-            stdin=subprocess.DEVNULL,
-        )
-        log_info("app", f"Moovent Stack UI launched on port {_setup_port()} (log: {ui_log_path})")
-    except Exception as exc:
-        log_error("app", f"Unable to start Moovent Stack UI: {exc}")
-    log_info("app", "Starting local stack...")
-    return _run_local_stack(runner_path)
+
+    # Get workspace path from runner path
+    workspace_root = runner_path.parent if runner_path else None
+    if not workspace_root:
+        cfg = _load_config()
+        workspace_root = Path(cfg.get("workspace_root", "")).expanduser()
+
+    if not workspace_root or not workspace_root.exists():
+        log_error("app", f"Workspace not found: {workspace_root}")
+        print(f"[runner] Workspace not found: {workspace_root}", file=sys.stderr)
+        return 2
+
+    # Import and run the admin dashboard directly
+    log_info("app", f"Starting admin dashboard for workspace: {workspace_root}")
+    
+    # Inject Infisical runtime env before starting
+    import os
+    for k, v in _build_runner_env().items():
+        if v and not os.environ.get(k):
+            os.environ[k] = v
+
+    from .admin import main as admin_main
+    return admin_main(workspace_root)
