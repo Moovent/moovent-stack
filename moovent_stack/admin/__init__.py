@@ -137,6 +137,10 @@ def main(workspace: Path | None = None) -> int:
     mqtt_repo = workspace / "mqtt_dashboard_watch"
     dashboard_repo = workspace / "dashboard"
 
+    # Detect which repos are installed
+    has_mqtt = mqtt_repo.exists()
+    has_dashboard = dashboard_repo.exists()
+
     # Access check
     if not ensure_access_or_exit(workspace):
         return 3
@@ -156,18 +160,18 @@ def main(workspace: Path | None = None) -> int:
             open_browser(url)
         return 0
 
-    # Validate repo folders exist
-    if not mqtt_repo.exists():
-        print(f"[runner] Missing repo folder: {mqtt_repo}", file=sys.stderr)
-        return 2
-    if not dashboard_repo.exists():
-        print(f"[runner] Missing repo folder: {dashboard_repo}", file=sys.stderr)
-        return 2
+    # Log which repos are available (not a fatal error if missing)
+    if has_mqtt:
+        print(f"[runner] Found repo: mqtt_dashboard_watch", flush=True)
+    else:
+        print(f"[runner] Repo not installed: mqtt_dashboard_watch", flush=True)
+    if has_dashboard:
+        print(f"[runner] Found repo: dashboard", flush=True)
+    else:
+        print(f"[runner] Repo not installed: dashboard", flush=True)
 
-    from shutil import which
-    
-    # Check for npm
-    if which("npm") is None:
+    # Check for npm (only required if we have repos with node deps)
+    if (has_mqtt or has_dashboard) and which("npm") is None:
         print("[runner] npm not found in PATH", file=sys.stderr)
         return 2
 
@@ -175,12 +179,16 @@ def main(workspace: Path | None = None) -> int:
         print("[runner] python executable not found", file=sys.stderr)
         return 2
 
-    # Update state
+    # Build list of available repos for update tracking
+    available_repos: list[tuple[str, Path]] = []
+    if has_mqtt:
+        available_repos.append(("mqtt_dashboard_watch", mqtt_repo))
+    if has_dashboard:
+        available_repos.append(("dashboard", dashboard_repo))
+
+    # Update state (only for installed repos)
     update_state = UpdateState(
-        repos=[
-            ("mqtt_dashboard_watch", mqtt_repo),
-            ("dashboard", dashboard_repo),
-        ],
+        repos=available_repos,
         interval_s=update_check_interval_s(),
         enabled=update_enabled(),
         auto_pull=update_auto_pull_enabled(),
@@ -188,14 +196,18 @@ def main(workspace: Path | None = None) -> int:
     )
     
     # Auto-pull updates once at launch when repos are clean.
-    update_state.auto_pull_on_launch()
+    if available_repos:
+        update_state.auto_pull_on_launch()
 
-    # Install dependencies
+    # Install dependencies for available repos
+    py_cmd = sys.executable  # Default fallback
     try:
-        py_cmd = ensure_python_deps(mqtt_repo, sys.executable)
-        ensure_node_deps(dashboard_repo / "server")
-        ensure_node_deps(dashboard_repo / "client")
-        ensure_node_deps(mqtt_repo / "mqtt-admin-dashboard")
+        if has_mqtt:
+            py_cmd = ensure_python_deps(mqtt_repo, sys.executable)
+            ensure_node_deps(mqtt_repo / "mqtt-admin-dashboard")
+        if has_dashboard:
+            ensure_node_deps(dashboard_repo / "server")
+            ensure_node_deps(dashboard_repo / "client")
     except subprocess.CalledProcessError as e:
         print(f"[runner] Dependency install failed: {e}", file=sys.stderr)
         return 1
@@ -204,7 +216,9 @@ def main(workspace: Path | None = None) -> int:
         return 1
 
     # Load mqtt repo .env to auto-pick the dashboard API key when needed.
-    mqtt_env = read_dotenv(mqtt_repo / ".env")
+    mqtt_env: dict[str, str] = {}
+    if has_mqtt:
+        mqtt_env = read_dotenv(mqtt_repo / ".env")
     api_key_enforce = mqtt_env.get("API_KEY_ENFORCE", "false").strip().lower() in ("1", "true", "yes", "on")
     dashboard_api_key = (mqtt_env.get("DASHBOARD_API_KEY") or "").strip()
 
@@ -274,60 +288,64 @@ def main(workspace: Path | None = None) -> int:
     client_env = dict(client_env)
     client_env["VITE_API_PROXY_TARGET"] = f"http://localhost:{server_port}"
 
-    manager.register(
-        ServiceSpec(
-            name="mqtt-backend",
-            cmd=[py_cmd, "src/main.py"],
-            cwd=mqtt_repo,
-            env=mqtt_proc_env,
-            url="http://localhost:8000",
-            health_url="http://localhost:8000/health",
-            port=8000,
-            repo=mqtt_repo,
+    # Register services only for installed repos
+    if has_mqtt:
+        manager.register(
+            ServiceSpec(
+                name="mqtt-backend",
+                cmd=[py_cmd, "src/main.py"],
+                cwd=mqtt_repo,
+                env=mqtt_proc_env,
+                url="http://localhost:8000",
+                health_url="http://localhost:8000/health",
+                port=8000,
+                repo=mqtt_repo,
+            )
         )
-    )
-    manager.register(
-        ServiceSpec(
-            name="mqtt-frontend",
-            cmd=["npm", "run", "dev", "--", "--port", "3000", "--strictPort"],
-            cwd=mqtt_repo / "mqtt-admin-dashboard",
-            env=dict(os.environ),
-            url="http://localhost:3000",
-            health_url="http://localhost:3000/",
-            port=3000,
-            repo=mqtt_repo,
+        manager.register(
+            ServiceSpec(
+                name="mqtt-frontend",
+                cmd=["npm", "run", "dev", "--", "--port", "3000", "--strictPort"],
+                cwd=mqtt_repo / "mqtt-admin-dashboard",
+                env=dict(os.environ),
+                url="http://localhost:3000",
+                health_url="http://localhost:3000/",
+                port=3000,
+                repo=mqtt_repo,
+            )
         )
-    )
-    manager.register(
-        ServiceSpec(
-            name="dashboard-server",
-            cmd=["npm", "run", "dev"],
-            cwd=dashboard_repo / "server",
-            env=server_env,
-            url=f"http://localhost:{server_port}",
-            # Port-only health to avoid spamming morgan logs with runner probes.
-            health_url="",
-            port=server_port,
-            repo=dashboard_repo,
+
+    if has_dashboard:
+        manager.register(
+            ServiceSpec(
+                name="dashboard-server",
+                cmd=["npm", "run", "dev"],
+                cwd=dashboard_repo / "server",
+                env=server_env,
+                url=f"http://localhost:{server_port}",
+                # Port-only health to avoid spamming morgan logs with runner probes.
+                health_url="",
+                port=server_port,
+                repo=dashboard_repo,
+            )
         )
-    )
-    manager.register(
-        ServiceSpec(
-            name="dashboard-client",
-            cmd=["npm", "run", "dev", "--", "--port", "4000", "--strictPort"],
-            cwd=dashboard_repo / "client",
-            env=client_env,
-            url="http://localhost:4000",
-            health_url="http://localhost:4000/",
-            port=4000,
-            repo=dashboard_repo,
+        manager.register(
+            ServiceSpec(
+                name="dashboard-client",
+                cmd=["npm", "run", "dev", "--", "--port", "4000", "--strictPort"],
+                cwd=dashboard_repo / "client",
+                env=client_env,
+                url="http://localhost:4000",
+                health_url="http://localhost:4000/",
+                port=4000,
+                repo=dashboard_repo,
+            )
         )
-    )
 
     # Wire update restarts now that services are registered.
     update_state.set_on_repo_updated(lambda repo: _restart_repo_services(manager, repo))
 
-    mqtt_watch_root = mqtt_repo / "src"
+    mqtt_watch_root = mqtt_repo / "src" if has_mqtt else None
     mqtt_last_mtime = 0.0
 
     # Start admin UI server.
@@ -364,14 +382,16 @@ def main(workspace: Path | None = None) -> int:
         summary_thread.start()
 
         # Wait loop: restarts mqtt-backend on .py file changes
-        mqtt_last_mtime = _latest_py_mtime(mqtt_watch_root)
+        if mqtt_watch_root:
+            mqtt_last_mtime = _latest_py_mtime(mqtt_watch_root)
 
         while True:
             # Auto-restart mqtt-backend on python code changes (simple polling watcher)
-            current_mtime = _latest_py_mtime(mqtt_watch_root)
-            if current_mtime and current_mtime > mqtt_last_mtime + 1e-6:
-                mqtt_last_mtime = current_mtime
-                manager.restart("mqtt-backend")
+            if mqtt_watch_root and has_mqtt:
+                current_mtime = _latest_py_mtime(mqtt_watch_root)
+                if current_mtime and current_mtime > mqtt_last_mtime + 1e-6:
+                    mqtt_last_mtime = current_mtime
+                    manager.restart("mqtt-backend")
 
             # Record unexpected process exits without killing the stack
             for name, proc in list(manager.procs.items()):
