@@ -694,38 +694,36 @@ def _run_setup_server() -> bool:
                             install.update(
                                 98,
                                 "Starting",
-                                "Launching local stack…",
+                                "Launching Moovent Stack Admin…",
                                 "",
                             )
-                            runner_path = _resolve_runner_path()
-                            if runner_path and runner_path.exists():
-                                import subprocess as sp
-                                import os as _os
+                            import subprocess as sp
+                            import os as _os
 
-                                env = _os.environ.copy()
-                                for k, v in _build_runner_env().items():
-                                    if v and not env.get(k):
-                                        env[k] = v
-                                # Start detached so it survives setup server exit.
-                                # Log output to a file for debugging.
-                                log_info("setup", f"Launching stack: {runner_path}")
-                                stack_log_path = Path.home() / ".moovent_stack_runner.log"
-                                log_info("setup", f"Stack output log: {stack_log_path}")
-                                # Open file without context manager so it stays open for Popen
-                                stack_log = open(stack_log_path, "w")
-                                sp.Popen(
-                                    [sys.executable, str(runner_path)],
-                                    env=env,
-                                    start_new_session=True,
-                                    stdout=stack_log,
-                                    stderr=sp.STDOUT,
-                                    stdin=sp.DEVNULL,
-                                )
-                                log_info("setup", "Stack launched in background")
-                                state.stack_launched = True
-                                # Give services more time to install deps and start.
-                                import time
-                                time.sleep(5)
+                            env = _os.environ.copy()
+                            for k, v in _build_runner_env().items():
+                                if v and not env.get(k):
+                                    env[k] = v
+                            # Start detached so it survives setup server exit.
+                            # Log output to a file for debugging.
+                            log_info("setup", f"Launching admin dashboard: python -m moovent_stack.admin {root}")
+                            stack_log_path = Path.home() / ".moovent_stack_runner.log"
+                            log_info("setup", f"Stack output log: {stack_log_path}")
+                            # Open file without context manager so it stays open for Popen
+                            stack_log = open(stack_log_path, "w")
+                            sp.Popen(
+                                [sys.executable, "-m", "moovent_stack.admin", str(root)],
+                                env=env,
+                                start_new_session=True,
+                                stdout=stack_log,
+                                stderr=sp.STDOUT,
+                                stdin=sp.DEVNULL,
+                            )
+                            log_info("setup", "Admin dashboard launched in background")
+                            state.stack_launched = True
+                            # Give services more time to install deps and start.
+                            import time
+                            time.sleep(5)
 
                             log_info("setup", "Install complete")
                             install.finish("Moovent Stack is running!")

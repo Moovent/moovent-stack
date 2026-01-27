@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.0
+- **Major**: Refactored admin dashboard into modular `moovent_stack.admin` package.
+- New: Full-featured Stack Admin UI with service control, real-time logs, git branch switching, and GitHub OAuth integration.
+- New: Admin module structure for maintainability:
+  - `admin/config.py` — Configuration constants
+  - `admin/logs.py` — Per-service log ring buffers with SSE streaming
+  - `admin/services.py` — Process manager (start/stop/restart/health checks)
+  - `admin/git_ops.py` — Git operations (branch switching, update detection)
+  - `admin/github.py` — GitHub OAuth and API integration
+  - `admin/updates.py` — Auto-update checks and one-click pulls
+  - `admin/server.py` — HTTP server and API endpoints
+  - `admin/templates/` — Dashboard HTML template
+- Change: Setup now launches `python -m moovent_stack.admin` directly after install.
+- Change: Generated `run_local_stack.py` is now a thin launcher that delegates to the admin module.
+- Ports remain standardized: 7000 (admin), 3000 (MQTT UI), 4000 (dashboard UI), 8000 (backend API).
+
 ## 0.4.34
 - Fix: use `http://127.0.0.1:7000` for Moovent Stack UI links to avoid macOS AirPlay/AirTunes 403 on `localhost:7000`.
 - Fix: do not block mqtt backend startup when `MQTT_USER` is empty (local dev).
