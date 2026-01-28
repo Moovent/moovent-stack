@@ -9,6 +9,8 @@
   - **GitHub OAuth**: Re-connect GitHub from the dashboard if needed
   - **Update system**: One-click fast-forward pulls with automatic service restart
   - **Health checks**: Live status indicators for each service (listening/not listening)
+- UX: “Development Stack” badge now sits closer to the Moovent logo in the header (left-aligned).
+- Fix: prevent GitHub repository dropdown from closing during auto-refresh by skipping service-card DOM rebuilds while a repo `<select>` is focused.
 - New: Admin module structure for maintainability:
   - `admin/__init__.py` — Entry point (`main()`) and orchestration
   - `admin/__main__.py` — Allows `python -m moovent_stack.admin`
