@@ -126,7 +126,7 @@
             </div>
 
             <!-- Center tagline (hidden on mobile) -->
-            <div class="hidden md:flex items-center">
+            <div class="hidden md:flex items-center ml-4">
               <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-brand-blue-300/20 via-brand-teal-300/20 to-brand-green-300/20 border border-slate-200/60">
                 <span class="relative flex h-2 w-2">
                   <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -555,6 +555,8 @@
         selectedService: null,
         logs: [],
         lastId: 0,
+        // Used to ignore stale log fetches when switching tabs quickly.
+        logsLoadSeq: 0,
         paused: false,
         autoScroll: true,
         filter: "",
@@ -565,6 +567,9 @@
         // UI-only state that must survive `renderServices()` rerenders.
         // Why: the dashboard refresh loop rebuilds the service cards frequently.
         detailsOpen: {},
+        // True while a <select> inside a service card is focused.
+        // Purpose: avoid tearing down/rebuilding the DOM while the native dropdown is open.
+        servicesSelectFocused: false,
         github: { connected: false, login: "", scopes: "", can_auth: false, error: "" },
         githubRepos: [],
         githubReposFetchedAt: 0,
@@ -615,6 +620,25 @@
       const elRestartAll = document.getElementById("action-restart-all");
       const elStopAll = document.getElementById("action-stop-all");
 
+      // Track focus on selects inside service cards. This is more reliable than `document.activeElement`
+      // during native dropdown interactions (some browsers temporarily move focus away).
+      if (elServices) {
+        elServices.addEventListener("focusin", (evt) => {
+          const t = evt.target;
+          if (t && (t.tagName || "").toUpperCase() === "SELECT") {
+            state.servicesSelectFocused = true;
+            if (DEBUG_UI) console.log("[ui] select focusin", t);
+          }
+        }, true);
+        elServices.addEventListener("focusout", (evt) => {
+          const t = evt.target;
+          if (t && (t.tagName || "").toUpperCase() === "SELECT") {
+            state.servicesSelectFocused = false;
+            if (DEBUG_UI) console.log("[ui] select focusout", t);
+          }
+        }, true);
+      }
+
       // Setup wizard elements
       const elSetupModal = document.getElementById("github-setup-modal");
       const elSetupProgressText = document.getElementById("setup-progress-text");
@@ -628,6 +652,20 @@
       const elSetupSaveError = document.getElementById("setup-save-error");
       const elSetupHomepageUrl = document.getElementById("setup-homepage-url");
       const elSetupCallbackUrl = document.getElementById("setup-callback-url");
+
+      // Debug helper: set `localStorage.MOOVENT_STACK_DEBUG_UI = "1"` and reload.
+      const DEBUG_UI = (localStorage.getItem("MOOVENT_STACK_DEBUG_UI") || "") === "1";
+
+      function friendlyServiceName(name) {
+        // Human-facing labels (UI only). Internal identifiers remain stable slug names.
+        const map = {
+          "mqtt-backend": "MQTT Backend",
+          "mqtt-frontend": "MQTT Dashboard",
+          "dashboard-server": "App Server",
+          "dashboard-client": "App Frontend",
+        };
+        return map[name] || name || "";
+      }
 
       // Canonicalize to 127.0.0.1 to avoid GitHub OAuth redirect URI mismatches
       // (GitHub requires an exact callback URL match).
@@ -965,7 +1003,7 @@
           if (state.github.connected) {
             await refreshGithubRepos(false);
           }
-          renderServices();
+          renderServices(false);
           state.githubFetched = true;
           // Show setup wizard if OAuth is not configured
           checkAndShowSetupWizard();
@@ -1016,6 +1054,7 @@
       function isServiceSelectActive() {
         // Avoid re-rendering the services DOM while a <select> is open/focused.
         // Rebuilding `elServices.innerHTML` replaces the <select> element, which closes the native dropdown.
+        if (state.servicesSelectFocused) return true;
         const active = document.activeElement;
         if (!active) return false;
         if (!elServices || !elServices.contains(active)) return false;
@@ -1023,7 +1062,11 @@
       }
 
       function renderServices(force = false) {
-        if (!force && isServiceSelectActive()) return;
+        if (!force && isServiceSelectActive()) {
+          if (DEBUG_UI) console.log("[ui] renderServices skipped (select active)");
+          return;
+        }
+        if (DEBUG_UI) console.log("[ui] renderServices", { force, stack: new Error().stack });
         elServices.innerHTML = state.services
           .map((svc) => {
             // Status
@@ -1085,13 +1128,7 @@
             const connectDisabled = ghConnected && selectedRepo && selectedGithubBranch ? "" : "disabled";
 
             // Friendly service name (human-facing labels)
-            const friendlyNames = {
-              "mqtt-backend": "MQTT Server Backend",
-              "mqtt-frontend": "MQTT Server Frontend",
-              "dashboard-server": "App Server",
-              "dashboard-client": "App Frontend"
-            };
-            const friendlyName = friendlyNames[svc.name] || svc.name;
+            const friendlyName = friendlyServiceName(svc.name);
             const detailsIsOpen = !!state.detailsOpen[svc.name];
             const detailsOpenClass = detailsIsOpen ? " open" : "";
 
@@ -1244,7 +1281,7 @@
         if (!branch) {
           state.gitInfo[name] = { ...(state.gitInfo[name] || {}), error: "branch_required", message: "" };
           showToast("warning", "Select a branch", "Please choose which branch to switch to");
-          renderServices();
+          renderServices(false);
           return;
         }
         showToast("info", "Switching branch...", "Checking out " + branch);
@@ -1272,7 +1309,7 @@
         } catch (err) {
           state.gitInfo[name] = { ...(state.gitInfo[name] || {}), error: "checkout_failed" };
           showToast("error", "Something went wrong", "Could not switch branches");
-          renderServices();
+          renderServices(false);
         }
       }
 
@@ -1282,7 +1319,7 @@
         if (!repo || !branch) {
           state.githubAction[name] = { error: repo ? "branch_required" : "invalid_repo", message: "" };
           showToast("warning", "Missing info", repo ? "Please select a branch" : "Please select a repository");
-          renderServices();
+          renderServices(false);
           return;
         }
         showToast("info", "Connecting repository...", "Setting up " + repo);
@@ -1305,7 +1342,7 @@
         } catch (err) {
           state.githubAction[name] = { error: "connect_failed", message: "" };
           showToast("error", "Something went wrong", "Could not connect to the repository");
-          renderServices();
+          renderServices(false);
         }
       }
 
@@ -1318,7 +1355,7 @@
               : "bg-white text-gray-700 border-gray-200";
             return `
               <button data-log-tab="${svc.name}" class="py-2 px-3 text-xs font-medium rounded-lg border ${cls}">
-                ${svc.name}
+                ${friendlyServiceName(svc.name)}
               </button>
             `;
           })
@@ -1392,18 +1429,25 @@
       }
 
       async function loadLogs(name) {
+        const loadSeq = ++state.logsLoadSeq;
         state.logs = [];
         state.lastId = 0;
         elLogOutput.textContent = "Loading logs...";
         try {
           const res = await fetch(`/api/logs/${encodeURIComponent(name)}?tail=${DEFAULT_TAIL}`);
+          if (!res.ok) {
+            throw new Error(`logs_http_${res.status}`);
+          }
           const data = await res.json();
+          // Ignore stale responses if user switched services quickly.
+          if (loadSeq !== state.logsLoadSeq) return;
           state.logs = data.entries || [];
           state.lastId = data.max_id || 0;
           renderLogs();
           openStream(name);
         } catch (err) {
-          elLogOutput.textContent = "Failed to load logs.";
+          console.error("[logs] load failed", { name, err });
+          elLogOutput.textContent = "Failed to load logs. See console for details.";
         }
       }
 
@@ -1428,13 +1472,13 @@
         };
         es.onerror = () => {
           // EventSource auto-reconnects; keep status message simple.
-          elLogStatus.textContent = `Logs: ${name} (reconnecting)`;
+          elLogStatus.textContent = `Logs: ${friendlyServiceName(name)} (reconnecting)`;
         };
       }
 
       function setSelectedService(name) {
         state.selectedService = name;
-        elLogStatus.textContent = `Logs: ${name}`;
+        elLogStatus.textContent = `Logs: ${friendlyServiceName(name)}`;
         renderLogTabs();
         loadLogs(name);
       }
@@ -1587,13 +1631,7 @@
           // Detect changes and show toasts
           newServices.forEach(svc => {
             const prev = previousStates[svc.name];
-            const friendlyNames = {
-              "mqtt-backend": "MQTT Server Backend",
-              "mqtt-frontend": "MQTT Server Frontend",
-              "dashboard-server": "App Server",
-              "dashboard-client": "App Frontend"
-            };
-            const name = friendlyNames[svc.name] || svc.name;
+            const name = friendlyServiceName(svc.name);
 
             if (prev) {
               // Check for new alerts
@@ -1673,7 +1711,7 @@
           if (action === "checkout") {
             checkoutBranch(name);
           } else if (action === "refresh") {
-            fetchGitInfo(name, true).then(() => renderServices());
+            fetchGitInfo(name, true).then(() => renderServices(false));
           }
           return;
         }
@@ -1683,13 +1721,7 @@
         const name = btn.getAttribute("data-service");
         const action = btn.getAttribute("data-action");
         if (!name || !action) return;
-        const friendlyNames = {
-          "mqtt-backend": "MQTT Server Backend",
-          "mqtt-frontend": "MQTT Server Frontend",
-          "dashboard-server": "App Server",
-          "dashboard-client": "App Frontend"
-        };
-        const serviceName = friendlyNames[name] || name;
+        const serviceName = friendlyServiceName(name);
         const actionMessages = {
           start: { type: "info", title: "Starting " + serviceName, msg: "Service is starting up..." },
           restart: { type: "info", title: "Restarting " + serviceName, msg: "Service will restart shortly" },
@@ -1697,6 +1729,8 @@
         };
         const m = actionMessages[action];
         if (m) showToast(m.type, m.title, m.msg);
+        // UX: when the user acts on a service, automatically switch logs to that service.
+        setSelectedService(name);
         postAction(`/api/services/${encodeURIComponent(name)}/${action}`);
       });
 
@@ -1792,7 +1826,7 @@
           state.githubSelectedRepo = {};
           state.githubSelectedBranch = {};
           renderGithubStatus();
-          renderServices();
+          renderServices(false);
         }
       });
 
