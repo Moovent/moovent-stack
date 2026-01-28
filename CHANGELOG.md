@@ -14,6 +14,7 @@
 - UX: rename MQTT services in the UI (“MQTT Backend”, “MQTT Dashboard”).
 - UX: clicking Start/Restart/Stop now automatically switches the logs panel to that service.
 - Fix: log switching is more robust when changing tabs quickly (prevents stale responses overwriting current logs).
+- UX: added green "Turn on" button with confirmation modal (appears when all services are stopped, replaces red "Shutdown" button).
 - New: Admin module structure for maintainability:
   - `admin/__init__.py` — Entry point (`main()`) and orchestration
   - `admin/__main__.py` — Allows `python -m moovent_stack.admin`

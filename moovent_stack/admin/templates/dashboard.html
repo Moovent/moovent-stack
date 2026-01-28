@@ -115,6 +115,52 @@
       </div>
     </div>
 
+    <!-- Startup Confirmation Modal (green version of shutdown) -->
+    <div id="startup-modal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+      <div class="flex min-h-screen items-center justify-center p-4">
+        <div class="fixed inset-0 bg-gray-900/70 backdrop-blur-sm" id="startup-modal-backdrop"></div>
+        <div class="relative w-full max-w-md bg-white border border-gray-200 rounded-xl shadow-xl">
+          <div class="p-6">
+            <!-- Header -->
+            <div class="flex items-start gap-4 mb-4">
+              <div class="flex-shrink-0 w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center">
+                <i data-lucide="power" class="w-6 h-6 text-emerald-600"></i>
+              </div>
+              <div>
+                <h3 class="text-lg font-semibold text-gray-900">Start Stack?</h3>
+                <p class="text-sm text-gray-500 mt-1">This will start all services.</p>
+              </div>
+            </div>
+            
+            <!-- Service List -->
+            <div class="mb-6 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <p class="text-xs font-medium text-gray-500 mb-2">Services that will be started:</p>
+              <div id="startup-service-list" class="space-y-1 text-sm text-gray-700">
+                <!-- Populated by JS -->
+              </div>
+            </div>
+            
+            <!-- Actions -->
+            <div class="flex items-center justify-end gap-3">
+              <button 
+                id="startup-cancel" 
+                class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                id="startup-confirm" 
+                class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors"
+              >
+                <i data-lucide="play" class="w-4 h-4"></i>
+                Start All
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="min-h-screen">
       <!-- Modern branded header -->
       <header class="sticky top-0 z-40 bg-white/80 backdrop-blur-lg border-b border-slate-200/60">
@@ -142,7 +188,16 @@
               <div class="h-4 w-px bg-slate-200 hidden sm:block"></div>
               <div id="github-status" class="flex items-center gap-2 text-xs text-slate-600"></div>
               <div class="h-4 w-px bg-slate-200"></div>
-              <!-- Shutdown Button -->
+              <!-- Startup Button (shown when all services are stopped) -->
+              <button 
+                id="startup-btn" 
+                class="hidden inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
+                title="Start all services"
+              >
+                <i data-lucide="play" class="w-3.5 h-3.5"></i>
+                <span class="hidden sm:inline">Turn on</span>
+              </button>
+              <!-- Shutdown Button (shown when services are running) -->
               <button 
                 id="shutdown-btn" 
                 class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors"
@@ -1673,6 +1728,7 @@
           renderStats();
           renderServices(false);
           renderLogTabs();
+          updatePowerButtons();
           elLastRefresh.textContent = "Updated " + formatTime(data.timestamp);
           // Schedule faster refresh if there are active alerts
           scheduleNextRefresh();
@@ -1860,7 +1916,7 @@
           elShutdownServiceList.innerHTML = running.map(s => `
             <div class="flex items-center gap-2">
               <span class="w-2 h-2 rounded-full ${s.health_ok ? 'bg-emerald-500' : s.running ? 'bg-amber-500' : 'bg-gray-400'}"></span>
-              <span>${s.name}</span>
+              <span>${friendlyServiceName(s.name)}</span>
               ${s.port ? `<span class="text-gray-400 text-xs">:${s.port}</span>` : ''}
             </div>
           `).join('');
@@ -1904,6 +1960,82 @@
       }
       if (elShutdownConfirm) {
         elShutdownConfirm.addEventListener("click", confirmShutdown);
+      }
+
+      // Startup modal (green "Turn on" counterpart to shutdown)
+      const elStartupBtn = document.getElementById("startup-btn");
+      const elStartupModal = document.getElementById("startup-modal");
+      const elStartupCancel = document.getElementById("startup-cancel");
+      const elStartupConfirm = document.getElementById("startup-confirm");
+      const elStartupBackdrop = document.getElementById("startup-modal-backdrop");
+      const elStartupServiceList = document.getElementById("startup-service-list");
+
+      function showStartupModal() {
+        // Populate service list with all known services
+        if (state.services.length === 0) {
+          elStartupServiceList.innerHTML = '<span class="text-gray-400 italic">No services configured</span>';
+        } else {
+          elStartupServiceList.innerHTML = state.services.map(s => `
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-gray-400"></span>
+              <span>${friendlyServiceName(s.name)}</span>
+              ${s.port ? `<span class="text-gray-400 text-xs">:${s.port}</span>` : ''}
+            </div>
+          `).join('');
+        }
+        elStartupModal.classList.remove("hidden");
+        if (window.lucide) lucide.createIcons();
+      }
+
+      function hideStartupModal() {
+        elStartupModal.classList.add("hidden");
+      }
+
+      async function confirmStartup() {
+        elStartupConfirm.disabled = true;
+        elStartupConfirm.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Starting...';
+        if (window.lucide) lucide.createIcons();
+        
+        try {
+          await postAction("/api/stack/start");
+          showToast("success", "Stack started", "All services are starting up");
+          hideStartupModal();
+          // Refresh to show running state
+          setTimeout(refreshServices, 500);
+        } catch (err) {
+          showToast("error", "Startup failed", err.message || "Could not start services");
+        } finally {
+          elStartupConfirm.disabled = false;
+          elStartupConfirm.innerHTML = '<i data-lucide="play" class="w-4 h-4"></i> Start All';
+          if (window.lucide) lucide.createIcons();
+        }
+      }
+
+      // Toggle visibility of startup/shutdown buttons based on service state
+      function updatePowerButtons() {
+        const anyRunning = state.services.some(s => s.running || s.desired);
+        if (elStartupBtn && elShutdownBtn) {
+          if (anyRunning) {
+            elStartupBtn.classList.add("hidden");
+            elShutdownBtn.classList.remove("hidden");
+          } else {
+            elStartupBtn.classList.remove("hidden");
+            elShutdownBtn.classList.add("hidden");
+          }
+        }
+      }
+
+      if (elStartupBtn) {
+        elStartupBtn.addEventListener("click", showStartupModal);
+      }
+      if (elStartupCancel) {
+        elStartupCancel.addEventListener("click", hideStartupModal);
+      }
+      if (elStartupBackdrop) {
+        elStartupBackdrop.addEventListener("click", hideStartupModal);
+      }
+      if (elStartupConfirm) {
+        elStartupConfirm.addEventListener("click", confirmStartup);
       }
 
       if (elUpdateAction) {
