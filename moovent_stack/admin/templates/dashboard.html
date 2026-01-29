@@ -1165,24 +1165,31 @@
             const statusColor = hasAlert ? "text-red-600" : (isHealthy ? "text-emerald-600" : (isRunning ? "text-amber-600" : "text-slate-500"));
 
             // Git info
-            const git = state.gitInfo[svc.name];
-            const gitOk = git && git.ok;
-            const gitBranchDisplay = (gitOk && git.branch_display) || "main";
-            const gitBranchRaw = (gitOk && git.branch_raw) || "";
-            const hasPendingChanges = gitOk && git.dirty;
-            // Backend returns branches_local and branches_remote; combine them for the dropdown
-            const localBranches = (gitOk && git.branches_local) || [];
-            const remoteBranches = (gitOk && git.branches_remote) || [];
-            // Merge: local first, then remote branches not already in local
-            const gitBranches = [...localBranches, ...remoteBranches.filter(b => !localBranches.includes(b))];
+            const git = state.gitInfo[svc.name] || {};
+            // Compatibility: backend may return either `{ ok, branch_raw, branches }` or
+            // `{ is_git, branch, branches_local, branches_remote }`.
+            const gitOk = (typeof git.ok === "boolean") ? git.ok : !!git.is_git;
+            const gitBranchRaw = (gitOk && (git.branch_raw || git.branch)) || "";
+            const gitBranchDisplay = (gitOk && (git.branch_display || gitBranchRaw)) || "main";
+            const hasPendingChanges = gitOk && !!git.dirty;
+
+            const branchesFromBackend = Array.isArray(git.branches) ? git.branches : [];
+            const localBranches = Array.isArray(git.branches_local) ? git.branches_local : [];
+            const remoteBranches = Array.isArray(git.branches_remote) ? git.branches_remote : [];
+            const mergedBranches = [...localBranches, ...remoteBranches.filter((b) => !localBranches.includes(b))];
+            const gitBranches = branchesFromBackend.length ? branchesFromBackend : mergedBranches;
+
             const selectedGitBranch = state.gitSelected[svc.name] || gitBranchRaw || "";
-            const gitBranchOptions = gitBranches.length
-              ? gitBranches.map((branch) => {
-                  const sel = branch === selectedGitBranch ? "selected" : "";
-                  return '<option value="' + branch + '" ' + sel + '>' + branch + '</option>';
-                }).join("")
-              : '<option value="">Loading...</option>';
-            const gitError = git && git.error ? git.error : "";
+            const gitBranchOptions = !gitOk
+              ? '<option value="">Not a git repo</option>'
+              : (gitBranches.length
+                ? gitBranches.map((branch) => {
+                    const sel = branch === selectedGitBranch ? "selected" : "";
+                    return '<option value="' + branch + '" ' + sel + '>' + branch + '</option>';
+                  }).join("")
+                : '<option value="">No branches found</option>');
+
+            const gitError = (git && git.error) ? git.error : (!gitOk ? "not_git_repo" : "");
             const gitErrorText = gitError ? gitErrorMessage(gitError) : "";
             const gitMessage = git && git.message ? git.message : "";
 
@@ -1315,6 +1322,10 @@
           if (DEBUG_UI) console.log("[git] fetchGitInfo response", { name, data });
           const current = state.gitInfo[name] || {};
           const merged = { ...current, ...data };
+          // Back-compat: older UI expects `ok`.
+          if (typeof merged.ok === "undefined" && typeof data.is_git !== "undefined") {
+            merged.ok = !!data.is_git;
+          }
           if (data.ok) {
             merged.error = "";
           }
@@ -1322,10 +1333,14 @@
             merged.message = current.message || "";
           }
           state.gitInfo[name] = merged;
-          const branchRaw = data.branch_raw || "";
-          const branches = Array.isArray(data.branches) ? data.branches : [];
+          const branchRaw = (data.branch_raw || data.branch || "").toString();
+          const branchesFromBackend = Array.isArray(data.branches) ? data.branches : [];
+          const localBranches = Array.isArray(data.branches_local) ? data.branches_local : [];
+          const remoteBranches = Array.isArray(data.branches_remote) ? data.branches_remote : [];
+          const mergedBranches = [...localBranches, ...remoteBranches.filter((b) => !localBranches.includes(b))];
+          const branches = branchesFromBackend.length ? branchesFromBackend : mergedBranches;
           if (DEBUG_UI) console.log("[git] branches for", name, ":", branches);
-          if (branchRaw && (!state.gitSelected[name] || !branches.includes(state.gitSelected[name]))) {
+          if (branchRaw && (!state.gitSelected[name] || (branches.length && !branches.includes(state.gitSelected[name])))) {
             state.gitSelected[name] = branchRaw;
           }
         } catch (err) {
