@@ -245,8 +245,7 @@
 
             <!-- Right side -->
             <div class="ml-auto flex items-center gap-3">
-              <span id="admin-url" class="hidden sm:inline-flex text-xs font-mono px-2.5 py-1 bg-slate-100 text-slate-600 rounded-md border border-slate-200"></span>
-              <div class="h-4 w-px bg-slate-200 hidden sm:block"></div>
+              <span id="admin-url" class="hidden"></span>
               <div id="github-status" class="flex items-center gap-2 text-xs text-slate-600"></div>
               <div class="h-4 w-px bg-slate-200"></div>
               <!-- Startup Button (shown when all services are stopped) -->
@@ -265,7 +264,7 @@
                 title="Shutdown all services"
               >
                 <i data-lucide="power" class="w-3.5 h-3.5"></i>
-                <span class="hidden sm:inline">Shutdown</span>
+                <span class="hidden sm:inline">Shutdown Dashboard</span>
               </button>
             </div>
           </div>
@@ -587,36 +586,17 @@
           <div id="log-tabs" class="flex flex-wrap gap-2"></div>
           <pre id="log-output" class="h-96 overflow-auto bg-gray-50 border border-gray-200 rounded-xl p-4 text-xs text-gray-800 font-mono whitespace-pre-wrap"></pre>
         </section>
-        <!-- Quick Help Section -->
-        <section class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6">
-          <div class="p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
-            <div class="flex items-center gap-3 mb-2 text-indigo-700">
-              <i data-lucide="help-circle" class="w-5 h-5"></i>
-              <h4 class="font-semibold text-sm">Need help?</h4>
-            </div>
-            <p class="text-xs text-indigo-600 leading-relaxed">
-              Use the <b>Start All</b> button above to launch everything at once. If something isn't working, check for red alerts on the service cards.
-            </p>
-          </div>
-          <div class="p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
-            <div class="flex items-center gap-3 mb-2 text-emerald-700">
-              <i data-lucide="git-merge" class="w-5 h-5"></i>
-              <h4 class="font-semibold text-sm">Switching Work</h4>
-            </div>
-            <p class="text-xs text-emerald-600 leading-relaxed">
-              Want to work on a different feature? Use the <b>Options</b> button on a service card to switch branches. We'll handle the restart for you.
-            </p>
-          </div>
-          <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl">
-            <div class="flex items-center gap-3 mb-2 text-slate-700">
-              <i data-lucide="bell" class="w-5 h-5"></i>
-              <h4 class="font-semibold text-sm">Notifications</h4>
-            </div>
-            <p class="text-xs text-slate-600 leading-relaxed">
-              Stay updated with real-time status changes. Issue notifications auto-clear once resolved, so you don't get stuck with old warnings.
-            </p>
-          </div>
-        </section>
+        <!-- Footer -->
+        <footer class="pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <p class="text-xs text-slate-500">© Moovent Sarl 2026</p>
+          <a
+            href="mailto:geoffrey@moovent.io"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+          >
+            <i data-lucide="mail" class="w-3.5 h-3.5"></i>
+            Contact
+          </a>
+        </footer>
       </main>
     </div>
 
@@ -648,6 +628,8 @@
           '<svg class="toast-close" onclick="dismissToast(' + id + ')" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
 
         toastContainer.appendChild(toast);
+        // Auto-dismiss toasts after 60 seconds (UX: avoid stale notifications).
+        setTimeout(() => dismissToast(id), 60 * 1000);
         return id;
       }
 
@@ -826,7 +808,8 @@
       // Canonicalize to 127.0.0.1 to avoid GitHub OAuth redirect URI mismatches
       // (GitHub requires an exact callback URL match).
       const canonicalOrigin = "http://127.0.0.1:" + window.location.port;
-      if (elAdminUrl) elAdminUrl.textContent = canonicalOrigin;
+      // UI: don't display the admin URL in the header (it's always this page).
+      if (elAdminUrl) elAdminUrl.textContent = "";
       // Update setup wizard URLs to reflect current port
       if (elSetupHomepageUrl) elSetupHomepageUrl.textContent = canonicalOrigin;
       if (elSetupCallbackUrl) elSetupCallbackUrl.textContent = canonicalOrigin + "/oauth/callback";
