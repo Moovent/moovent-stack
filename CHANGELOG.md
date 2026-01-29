@@ -19,6 +19,7 @@
 - Debug: enabled verbose console logging by default to diagnose dropdown auto-close issue.
 - Removed: "Connect to GitHub repository" section from Options (not needed).
 - Fix: branch dropdown works with backend git schema (ok/is_git, branch/branch_raw, branches/branches_local/branches_remote).
+- UX: service issue toasts now auto-dismiss when the issue is resolved; MQTT Backend issues are toast-only (no inline red alert card).
 - New: Admin module structure for maintainability:
   - `admin/__init__.py` — Entry point (`main()`) and orchestration
   - `admin/__main__.py` — Allows `python -m moovent_stack.admin`

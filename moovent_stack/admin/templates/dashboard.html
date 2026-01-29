@@ -613,7 +613,7 @@
               <h4 class="font-semibold text-sm">Notifications</h4>
             </div>
             <p class="text-xs text-slate-600 leading-relaxed">
-              Stay updated with real-time status changes. Notifications in the corner will stay until you close them, so you never miss an important update.
+              Stay updated with real-time status changes. Issue notifications auto-clear once resolved, so you don't get stuck with old warnings.
             </p>
           </div>
         </section>
@@ -656,6 +656,18 @@
         if (toast) {
           toast.classList.add("hiding");
           setTimeout(() => toast.remove(), 300);
+        }
+        // Best-effort cleanup: if this toast belonged to a service alert, clear mapping.
+        try {
+          const map = state && state.serviceAlertToasts ? state.serviceAlertToasts : {};
+          for (const [svcName, toastId] of Object.entries(map)) {
+            if (toastId === id) {
+              delete map[svcName];
+              break;
+            }
+          }
+        } catch (e) {
+          // Never throw from UI cleanup.
         }
       }
 
@@ -700,6 +712,8 @@
         updateDismissed: false,
         // Service name currently targeted by "Update to latest" modal.
         gitUpdateTarget: null,
+        // Tracks error toast IDs for active service alerts (so we can auto-dismiss on resolve).
+        serviceAlertToasts: {},
       };
       let lastGitRefresh = 0;
 
@@ -1319,7 +1333,8 @@
               '</div>' +
 
               // Alert (if any)
-              (svc.alert ? renderAlert(svc.alert) : "") +
+              // UX: For MQTT Backend, avoid an inline red card (toast-only).
+              ((svc.alert && svc.name !== "mqtt-backend") ? renderAlert(svc.alert) : "") +
 
               // Quick actions
               '<div class="flex items-center gap-2 mb-3">' +
@@ -1855,11 +1870,19 @@
                   connection_refused: "Cannot connect to the service",
                   module_not_found: "A required module is missing"
                 };
-                showToast("error", name + " has an issue", alertMessages[svc.alert.type] || "Something went wrong");
+                // Keep a handle so we can auto-dismiss once resolved.
+                // If a previous alert toast exists, dismiss it first to avoid duplicates.
+                const existingId = state.serviceAlertToasts[svc.name];
+                if (existingId) dismissToast(existingId);
+                const id = showToast("error", name + " has an issue", alertMessages[svc.alert.type] || "Something went wrong");
+                state.serviceAlertToasts[svc.name] = id;
               }
               // Check for alert resolved
               if (!svc.alert && prev.alert) {
-                showToast("success", name + " is back!", "The issue has been resolved");
+                // Don't worry the user when resolved: just clear the red toast if present.
+                const existingId = state.serviceAlertToasts[svc.name];
+                if (existingId) dismissToast(existingId);
+                delete state.serviceAlertToasts[svc.name];
               }
               // Check if service started
               if (svc.running && !prev.running) {
