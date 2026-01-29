@@ -4,6 +4,10 @@
 - **New**: "Push to GitHub" button appears next to branch name when there are unpushed commits (ahead of origin).
   - Clicking the button pushes the current branch to GitHub without needing to open a terminal.
   - Shows success/error toast with details.
+- **Fix**: Load `MOOVENT_INFISICAL_EXPORT_KEYS` from workspace `.env` before fetching Infisical secrets.
+  - Previously, additional keys like `ANTHROPIC_API_KEY` weren't being exported because the config wasn't loaded.
+  - Now the workspace's `.env` is read first, so user-specified export keys are properly fetched from Infisical.
+- **UX**: Remove hover zoom/translate effect on service cards.
 - Note: "Unsaved work" badge still shows for uncommitted changes (can't be pushed directly — commit first).
 
 ## 0.5.0

@@ -149,6 +149,19 @@ def main() -> int:
     # Import and run the admin dashboard directly
     log_info("app", f"Starting admin dashboard for workspace: {workspace_root}")
     
+    # Load workspace .env to get MOOVENT_INFISICAL_EXPORT_KEYS before fetching secrets.
+    # This allows the user to specify which additional keys to export from Infisical.
+    mqtt_env_path = workspace_root / "mqtt_dashboard_watch" / ".env"
+    if mqtt_env_path.exists():
+        from .admin.deps import read_dotenv
+        workspace_env = read_dotenv(mqtt_env_path)
+        # Only load MOOVENT_INFISICAL_EXPORT_KEYS (and similar config vars) to os.environ.
+        # Don't load secrets from .env — let Infisical provide those.
+        config_keys = ["MOOVENT_INFISICAL_EXPORT_KEYS", "INFISICAL_REQUIRED_KEYS"]
+        for k in config_keys:
+            if k in workspace_env and not os.environ.get(k):
+                os.environ[k] = workspace_env[k]
+    
     # Inject Infisical runtime env before starting
     for k, v in _build_runner_env().items():
         if v and not os.environ.get(k):
