@@ -34,4 +34,5 @@ moovent_stack/setup/assets.py
 moovent_stack/setup/server.py
 moovent_stack/setup/templates.py
 tests/test_access_unittest.py
+tests/test_admin_git_ops_unittest.py
 tests/test_setup_server_unittest.py
