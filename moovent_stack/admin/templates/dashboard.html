@@ -678,18 +678,41 @@
       // Track focus on selects inside service cards. This is more reliable than `document.activeElement`
       // during native dropdown interactions (some browsers temporarily move focus away).
       if (elServices) {
+        elServices.addEventListener("mousedown", (evt) => {
+          const t = evt.target;
+          if (t && (t.tagName || "").toUpperCase() === "SELECT") {
+            state.servicesSelectFocused = true;
+            if (DEBUG_UI) console.log("[ui] select mousedown - locking", t.getAttribute("data-github-repo-select") || t.getAttribute("data-github-branch-select") || t.getAttribute("data-git-select") || "unknown");
+          }
+        }, true);
         elServices.addEventListener("focusin", (evt) => {
           const t = evt.target;
           if (t && (t.tagName || "").toUpperCase() === "SELECT") {
             state.servicesSelectFocused = true;
-            if (DEBUG_UI) console.log("[ui] select focusin", t);
+            if (DEBUG_UI) console.log("[ui] select focusin", t.getAttribute("data-github-repo-select") || t.getAttribute("data-github-branch-select") || t.getAttribute("data-git-select") || "unknown");
           }
         }, true);
         elServices.addEventListener("focusout", (evt) => {
           const t = evt.target;
           if (t && (t.tagName || "").toUpperCase() === "SELECT") {
-            state.servicesSelectFocused = false;
-            if (DEBUG_UI) console.log("[ui] select focusout", t);
+            // Delay clearing the flag slightly to handle rapid focus shifts
+            setTimeout(() => {
+              // Only clear if no select is currently focused
+              const active = document.activeElement;
+              const stillOnSelect = active && (active.tagName || "").toUpperCase() === "SELECT" && elServices.contains(active);
+              if (!stillOnSelect) {
+                state.servicesSelectFocused = false;
+                if (DEBUG_UI) console.log("[ui] select focusout - unlocking");
+              } else {
+                if (DEBUG_UI) console.log("[ui] select focusout - still on select, staying locked");
+              }
+            }, 100);
+          }
+        }, true);
+        elServices.addEventListener("change", (evt) => {
+          const t = evt.target;
+          if (t && (t.tagName || "").toUpperCase() === "SELECT") {
+            if (DEBUG_UI) console.log("[ui] select change", t.getAttribute("data-github-repo-select") || t.getAttribute("data-github-branch-select") || t.getAttribute("data-git-select") || "unknown", "value:", t.value);
           }
         }, true);
       }
@@ -708,8 +731,9 @@
       const elSetupHomepageUrl = document.getElementById("setup-homepage-url");
       const elSetupCallbackUrl = document.getElementById("setup-callback-url");
 
-      // Debug helper: set `localStorage.MOOVENT_STACK_DEBUG_UI = "1"` and reload.
-      const DEBUG_UI = (localStorage.getItem("MOOVENT_STACK_DEBUG_UI") || "") === "1";
+      // Debug helper: set `localStorage.MOOVENT_STACK_DEBUG_UI = "0"` to disable.
+      // Currently ON by default to debug dropdown issue.
+      const DEBUG_UI = (localStorage.getItem("MOOVENT_STACK_DEBUG_UI") || "1") === "1";
 
       function friendlyServiceName(name) {
         // Human-facing labels (UI only). Internal identifiers remain stable slug names.
@@ -1109,19 +1133,27 @@
       function isServiceSelectActive() {
         // Avoid re-rendering the services DOM while a <select> is open/focused.
         // Rebuilding `elServices.innerHTML` replaces the <select> element, which closes the native dropdown.
-        if (state.servicesSelectFocused) return true;
+        if (state.servicesSelectFocused) {
+          if (DEBUG_UI) console.log("[ui] isServiceSelectActive: TRUE (servicesSelectFocused flag)");
+          return true;
+        }
         const active = document.activeElement;
         if (!active) return false;
         if (!elServices || !elServices.contains(active)) return false;
-        return (active.tagName || "").toUpperCase() === "SELECT";
+        const isSelect = (active.tagName || "").toUpperCase() === "SELECT";
+        if (isSelect && DEBUG_UI) console.log("[ui] isServiceSelectActive: TRUE (activeElement is select)");
+        return isSelect;
       }
 
       function renderServices(force = false) {
         if (!force && isServiceSelectActive()) {
-          if (DEBUG_UI) console.log("[ui] renderServices skipped (select active)");
+          if (DEBUG_UI) console.log("[ui] renderServices SKIPPED (select active)", { force });
           return;
         }
-        if (DEBUG_UI) console.log("[ui] renderServices", { force, stack: new Error().stack });
+        if (DEBUG_UI) {
+          const caller = new Error().stack.split("\n")[2] || "unknown";
+          console.log("[ui] renderServices EXECUTING", { force, caller: caller.trim() });
+        }
         elServices.innerHTML = state.services
           .map((svc) => {
             // Status
