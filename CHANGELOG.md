@@ -17,7 +17,7 @@
 - UX: added green "Turn on" button with confirmation modal (appears when all services are stopped, replaces red "Shutdown" button).
 - Debug: enabled verbose console logging by default to diagnose dropdown auto-close issue.
 - Removed: "Connect to GitHub repository" section from Options (not needed).
-- Fix: branch dropdown now correctly shows local and remote branches (was showing "Loading..." due to field name mismatch).
+- Fix: branch dropdown works with backend git schema (ok/is_git, branch/branch_raw, branches/branches_local/branches_remote).
 - New: Admin module structure for maintainability:
   - `admin/__init__.py` — Entry point (`main()`) and orchestration
   - `admin/__main__.py` — Allows `python -m moovent_stack.admin`
