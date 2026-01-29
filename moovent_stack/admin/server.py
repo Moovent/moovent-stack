@@ -38,7 +38,7 @@ from .github import (
     git_connect_repo,
     GitHubState,
 )
-from .git_ops import GitCache, git_checkout_branch
+from .git_ops import GitCache, git_checkout_branch, git_pull_latest
 from .updates import UpdateState
 
 if TYPE_CHECKING:
@@ -253,7 +253,7 @@ def build_admin_server(
                     self._send_json({"error": "unknown_service"}, status=404)
                     return
                 force = (qs.get("force") or ["0"])[0] in ("1", "true", "yes", "on")
-                info = git_cache.get_info(spec.repo)
+                info = git_cache.get_info(spec.repo, force=force)
                 info["service"] = name
                 self._send_json(info)
                 return
@@ -421,6 +421,29 @@ def build_admin_server(
                         "branch": branch,
                         "restarted": restarted,
                         "message": message,
+                    })
+                    return
+
+                if action == "pull":
+                    ok, code, detail = git_pull_latest(spec.repo)
+                    if not ok:
+                        self._send_json({"ok": False, "error": code, "detail": detail})
+                        return
+
+                    git_cache.invalidate(spec.repo)
+                    restarted: list[str] = []
+                    for svc_name in manager.services_for_repo(spec.repo):
+                        manager.log_store.append(svc_name, "[runner] git pull --ff-only")
+                        if manager.desired_running.get(svc_name, False):
+                            manager.restart(svc_name)
+                            restarted.append(svc_name)
+
+                    self._send_json({
+                        "ok": True,
+                        "service": name,
+                        "status": code,  # "updated" | "up_to_date"
+                        "detail": detail,
+                        "restarted": restarted,
                     })
                     return
                 

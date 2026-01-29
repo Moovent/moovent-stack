@@ -161,6 +161,67 @@
       </div>
     </div>
 
+    <!-- Git Update to Latest Modal (danger zone) -->
+    <div id="git-update-modal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+      <div class="flex min-h-screen items-center justify-center p-4">
+        <div class="fixed inset-0 bg-gray-900/70 backdrop-blur-sm" id="git-update-modal-backdrop"></div>
+        <div class="relative w-full max-w-md bg-white border border-gray-200 rounded-xl shadow-xl">
+          <div class="p-6">
+            <!-- Header -->
+            <div class="flex items-start gap-4 mb-4">
+              <div class="flex-shrink-0 w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
+                <i data-lucide="git-pull-request" class="w-6 h-6 text-amber-700"></i>
+              </div>
+              <div class="min-w-0">
+                <h3 class="text-lg font-semibold text-gray-900">Update to latest commit?</h3>
+                <p class="text-sm text-gray-500 mt-1">
+                  This will fast-forward your local repo and restart affected services.
+                </p>
+              </div>
+            </div>
+
+            <!-- Details -->
+            <div class="mb-5 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <div class="text-xs text-gray-600 space-y-1">
+                <div><span class="font-medium text-gray-700">Service:</span> <span id="git-update-service">--</span></div>
+                <div><span class="font-medium text-gray-700">Branch:</span> <span id="git-update-branch">--</span></div>
+                <div><span class="font-medium text-gray-700">Behind:</span> <span id="git-update-behind">--</span></div>
+                <div class="break-words">
+                  <span class="font-medium text-gray-700">Latest:</span>
+                  <span id="git-update-latest">--</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Warning -->
+            <div class="mb-6 p-3 rounded-lg bg-red-50 border border-red-200">
+              <p class="text-xs font-medium text-red-700">Danger zone</p>
+              <p class="mt-1 text-[11px] text-red-600">
+                Only fast-forward updates are allowed. If your branch diverged or you have local changes, this will fail.
+              </p>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex items-center justify-end gap-3">
+              <button
+                id="git-update-cancel"
+                class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                id="git-update-confirm"
+                class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+              >
+                <i data-lucide="arrow-down-circle" class="w-4 h-4"></i>
+                Update to latest
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="min-h-screen">
       <!-- Modern branded header -->
       <header class="sticky top-0 z-40 bg-white/80 backdrop-blur-lg border-b border-slate-200/60">
@@ -637,6 +698,8 @@
         update: null,
         updateLastUpdateAt: 0,
         updateDismissed: false,
+        // Service name currently targeted by "Update to latest" modal.
+        gitUpdateTarget: null,
       };
       let lastGitRefresh = 0;
 
@@ -1006,6 +1069,11 @@
           git_fetch_failed: "Failed to read git info.",
           git_status_failed: "Unable to read git status.",
           dirty_worktree: "Working tree has changes; commit or stash first.",
+          detached_head: "Repo is in detached HEAD state; checkout a branch first.",
+          no_upstream: "No upstream branch found for this branch.",
+          fetch_failed: "Failed to fetch latest from origin.",
+          ff_only_failed: "Cannot fast-forward cleanly; resolve divergence manually.",
+          pull_failed: "Failed to update to latest commit.",
           branch_not_found: "Branch not found.",
           branch_required: "Select a branch to checkout.",
           checkout_failed: "Checkout failed.",
@@ -1191,6 +1259,12 @@
 
             const gitError = (git && git.error) ? git.error : (!gitOk ? "not_git_repo" : "");
             const gitErrorText = gitError ? gitErrorMessage(gitError) : "";
+            const gitBehind = gitOk ? (Number(git.behind) || 0) : 0;
+            const gitAhead = gitOk ? (Number(git.ahead) || 0) : 0;
+            const upstreamSha = (gitOk && (git.upstream_commit_short || git.upstream_commit)) || "";
+            const upstreamSubject = (gitOk && (git.upstream_subject || "")) || "";
+            const upstreamUrl = (gitOk && (git.upstream_url || "")) || "";
+            const canUpdateLatest = !!(gitOk && git.can_update_latest && gitBehind > 0);
 
             // GitHub info
             const gh = state.github || {};
@@ -1287,6 +1361,32 @@
                       '</button>' +
                     '</div>' +
                     (gitErrorText ? '<p class="mt-1 text-xs text-red-600">' + gitErrorText + '</p>' : '') +
+                    (gitOk && gitBehind > 0 ? (
+                      '<div class="mt-2 p-2 rounded-lg bg-amber-50 border border-amber-200">' +
+                        '<div class="flex items-start justify-between gap-2">' +
+                          '<div class="min-w-0">' +
+                            '<p class="text-xs font-medium text-amber-800 flex items-center gap-1.5">' +
+                              '<i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i>' +
+                              'Behind by ' + formatCommitCount(gitBehind) +
+                              (gitAhead > 0 ? ' (and ahead by ' + formatCommitCount(gitAhead) + ')' : '') +
+                            '</p>' +
+                            (upstreamSha ? (
+                              '<p class="mt-1 text-[11px] text-amber-700 break-words">' +
+                                'Latest: ' +
+                                (upstreamUrl
+                                  ? '<a href="' + upstreamUrl + '" target="_blank" class="text-indigo-700 hover:text-indigo-900 underline">' + upstreamSha + '</a>'
+                                  : '<span class="font-mono">' + upstreamSha + '</span>') +
+                                (upstreamSubject ? (' — ' + escapeHtml(upstreamSubject)) : '') +
+                              '</p>'
+                            ) : '') +
+                            (hasPendingChanges ? '<p class="mt-1 text-[11px] text-amber-700">Commit/stash your changes before updating.</p>' : '') +
+                          '</div>' +
+                          '<button data-git-action="pull" data-service="' + svc.name + '" ' + (canUpdateLatest ? '' : 'disabled') + ' class="shrink-0 py-1.5 px-2.5 text-[11px] font-medium rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5">' +
+                            '<i data-lucide="arrow-down-circle" class="w-3.5 h-3.5"></i> Update' +
+                          '</button>' +
+                        '</div>' +
+                      '</div>'
+                    ) : '') +
                   '</div>' +
 
                   // Technical details (hidden by default)
@@ -1391,6 +1491,38 @@
         } catch (err) {
           state.gitInfo[name] = { ...(state.gitInfo[name] || {}), error: "checkout_failed" };
           showToast("error", "Something went wrong", "Could not switch branches");
+          renderServices(false);
+        }
+      }
+
+      async function pullLatest(name) {
+        if (!name) return;
+        showToast("info", "Updating to latest...", "Fast-forwarding from origin");
+        try {
+          const res = await fetch(`/api/git/${encodeURIComponent(name)}/pull`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          });
+          const data = await res.json();
+          if (!data.ok) {
+            const code = data.error || "pull_failed";
+            state.gitInfo[name] = { ...(state.gitInfo[name] || {}), error: code };
+            showToast("error", "Update failed", gitErrorMessage(code));
+            renderServices(false);
+            return;
+          }
+          const status = data.status || "updated";
+          if (status === "up_to_date") {
+            showToast("success", "Already up to date", "No updates to apply");
+          } else {
+            showToast("success", "Updated to latest", "Services will restart automatically");
+          }
+          await refreshGit(true);
+          await refreshServices();
+        } catch (err) {
+          state.gitInfo[name] = { ...(state.gitInfo[name] || {}), error: "pull_failed" };
+          showToast("error", "Something went wrong", "Could not update to latest");
           renderServices(false);
         }
       }
@@ -1793,6 +1925,9 @@
           if (!name || !action) return;
           if (action === "checkout") {
             checkoutBranch(name);
+          } else if (action === "pull") {
+            state.gitUpdateTarget = name;
+            showGitUpdateModal(name);
           } else if (action === "refresh") {
             fetchGitInfo(name, true).then(() => renderServices(false));
           }
@@ -2064,6 +2199,85 @@
       if (elStartupConfirm) {
         elStartupConfirm.addEventListener("click", confirmStartup);
       }
+
+      // Git update modal (per-service "Update to latest" danger zone)
+      const elGitUpdateModal = document.getElementById("git-update-modal");
+      const elGitUpdateBackdrop = document.getElementById("git-update-modal-backdrop");
+      const elGitUpdateCancel = document.getElementById("git-update-cancel");
+      const elGitUpdateConfirm = document.getElementById("git-update-confirm");
+      const elGitUpdateService = document.getElementById("git-update-service");
+      const elGitUpdateBranch = document.getElementById("git-update-branch");
+      const elGitUpdateBehind = document.getElementById("git-update-behind");
+      const elGitUpdateLatest = document.getElementById("git-update-latest");
+
+      function showGitUpdateModal(serviceName) {
+        const name = serviceName || state.gitUpdateTarget;
+        const git = state.gitInfo[name] || {};
+        const gitOk = (typeof git.ok === "boolean") ? git.ok : !!git.is_git;
+        const behind = gitOk ? (Number(git.behind) || 0) : 0;
+        const dirty = !!git.dirty;
+        const canUpdate = !!(gitOk && git.can_update_latest && behind > 0 && !dirty);
+        if (!gitOk || behind <= 0) {
+          showToast("info", "No updates available", "This repo is already up to date");
+          return;
+        }
+        if (!canUpdate) {
+          showToast("warning", "Cannot update", dirty ? "Commit or stash changes first" : "Update not available");
+          return;
+        }
+
+        const branchRaw = (git.branch_raw || git.branch || "").toString();
+        const upstreamSha = (git.upstream_commit_short || git.upstream_commit || "").toString();
+        const upstreamSubject = (git.upstream_subject || "").toString();
+        const upstreamUrl = (git.upstream_url || "").toString();
+
+        if (elGitUpdateService) elGitUpdateService.textContent = friendlyServiceName(name);
+        if (elGitUpdateBranch) elGitUpdateBranch.textContent = branchRaw || "--";
+        if (elGitUpdateBehind) elGitUpdateBehind.textContent = formatCommitCount(behind);
+        if (elGitUpdateLatest) {
+          if (upstreamSha && upstreamUrl) {
+            elGitUpdateLatest.innerHTML = '<a href="' + upstreamUrl + '" target="_blank" class="text-indigo-700 hover:text-indigo-900 underline font-mono">' + upstreamSha + '</a>' +
+              (upstreamSubject ? (' <span class="text-gray-500">— ' + escapeHtml(upstreamSubject) + '</span>') : '');
+          } else if (upstreamSha) {
+            elGitUpdateLatest.textContent = upstreamSha + (upstreamSubject ? (" — " + upstreamSubject) : "");
+          } else {
+            elGitUpdateLatest.textContent = "--";
+          }
+        }
+
+        state.gitUpdateTarget = name;
+        if (elGitUpdateModal) elGitUpdateModal.classList.remove("hidden");
+        if (window.lucide) lucide.createIcons();
+      }
+
+      function hideGitUpdateModal() {
+        if (elGitUpdateModal) elGitUpdateModal.classList.add("hidden");
+        state.gitUpdateTarget = null;
+      }
+
+      async function confirmGitUpdate() {
+        const name = state.gitUpdateTarget;
+        if (!name) return;
+        if (elGitUpdateConfirm) {
+          elGitUpdateConfirm.disabled = true;
+          elGitUpdateConfirm.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Updating...';
+          if (window.lucide) lucide.createIcons();
+        }
+        try {
+          await pullLatest(name);
+          hideGitUpdateModal();
+        } finally {
+          if (elGitUpdateConfirm) {
+            elGitUpdateConfirm.disabled = false;
+            elGitUpdateConfirm.innerHTML = '<i data-lucide="arrow-down-circle" class="w-4 h-4"></i> Update to latest';
+            if (window.lucide) lucide.createIcons();
+          }
+        }
+      }
+
+      if (elGitUpdateCancel) elGitUpdateCancel.addEventListener("click", hideGitUpdateModal);
+      if (elGitUpdateBackdrop) elGitUpdateBackdrop.addEventListener("click", hideGitUpdateModal);
+      if (elGitUpdateConfirm) elGitUpdateConfirm.addEventListener("click", confirmGitUpdate);
 
       if (elUpdateAction) {
         elUpdateAction.addEventListener("click", () => {

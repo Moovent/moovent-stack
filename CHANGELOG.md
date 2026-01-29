@@ -6,6 +6,7 @@
   - **Service control**: Start/stop/restart individual services with one click
   - **Real-time logs**: SSE-streamed logs per service with auto-scroll and filtering
   - **Git integration**: View current branch, detect updates, switch branches
+  - **Git integration**: When a repo is behind, show a warning with a link to the latest upstream commit and a **danger-zone** “Update to latest” button (fast-forward only) + automatic service restart
   - **GitHub OAuth**: Re-connect GitHub from the dashboard if needed
   - **Update system**: One-click fast-forward pulls with automatic service restart
   - **Health checks**: Live status indicators for each service (listening/not listening)
