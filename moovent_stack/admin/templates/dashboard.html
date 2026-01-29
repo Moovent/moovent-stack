@@ -456,27 +456,25 @@
       </div>
 
       <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
-        <!-- Update Banner (Tailwind: Pages/banners.md) -->
-        <section id="update-banner" class="hidden mb-2 p-4 sm:ps-16 relative overflow-hidden bg-linear-to-r from-orange-100 via-purple-200 via-70% to-indigo-200 rounded-lg" role="alert" aria-live="polite">
-          <div class="flex items-center gap-x-3">
-            <div class="hidden sm:block absolute -bottom-4 -start-6">
-              <span class="text-7xl">
-                <i data-lucide="arrow-up-circle" class="w-12 h-12 text-orange-600"></i>
-              </span>
+        <!-- Update Banner -->
+        <section id="update-banner" class="hidden mb-2 p-4 bg-white border border-slate-200 rounded-xl" role="alert" aria-live="polite">
+          <div class="flex items-center gap-4">
+            <div class="shrink-0 p-3 bg-orange-100 rounded-lg">
+              <i data-lucide="arrow-up-circle" class="w-6 h-6 text-orange-600"></i>
             </div>
-            <div class="grow">
-              <h4 id="update-title" class="font-medium text-orange-700">
+            <div class="grow min-w-0">
+              <h4 id="update-title" class="font-medium text-slate-800">
                 Update available
               </h4>
-              <p id="update-message" class="mt-1 text-xs text-gray-800"></p>
-              <p id="update-detail" class="mt-1 text-[11px] text-gray-600"></p>
+              <p id="update-message" class="mt-1 text-xs text-slate-600"></p>
+              <p id="update-detail" class="mt-1 text-[11px] text-amber-700"></p>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 shrink-0">
               <button id="update-action" type="button" class="py-2 px-3 inline-flex items-center gap-x-2 text-xs font-medium rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:pointer-events-none focus:outline-hidden focus:ring-2 focus:ring-blue-500">
                 <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
                 <span id="update-action-label">Update now</span>
               </button>
-              <button id="update-dismiss" type="button" class="size-7 inline-flex justify-center items-center gap-x-1 rounded-full text-xs border border-transparent text-gray-800 hover:bg-indigo-300 disabled:opacity-50 disabled:pointer-events-none focus:outline-hidden focus:bg-indigo-300">
+              <button id="update-dismiss" type="button" class="size-7 inline-flex justify-center items-center gap-x-1 rounded-full text-xs border border-transparent text-slate-500 hover:bg-slate-100 disabled:opacity-50 disabled:pointer-events-none focus:outline-hidden focus:bg-slate-100">
                 <i data-lucide="x" class="w-3.5 h-3.5"></i>
                 <span class="sr-only">Dismiss</span>
               </button>
@@ -1300,7 +1298,8 @@
             const detailsIsOpen = !!state.detailsOpen[svc.name];
             const detailsOpenClass = detailsIsOpen ? " open" : "";
 
-            return '<div class="service-card p-4 bg-white border border-slate-200 rounded-xl">' +
+            const repoName = svc.repo_name || "";
+            return '<div class="service-card p-4 bg-white border border-slate-200 rounded-xl transition-shadow" data-repo-name="' + repoName + '">' +
               // Header: Name + Status
               '<div class="flex items-center justify-between mb-3">' +
                 '<div class="flex items-center gap-3">' +
@@ -1800,9 +1799,14 @@
 
         const repos = data.repos || [];
         const behind = repos.filter((repo) => (repo.behind || 0) > 0);
+        const dirty = repos.filter((repo) => (repo.behind || 0) > 0 && repo.dirty);
         const hasUpdates = behind.length > 0;
         const updateInProgress = Boolean(data.update_in_progress);
         const canUpdate = behind.some((repo) => repo.can_update);
+        const hasDirtyBlockers = dirty.length > 0 && !canUpdate;
+
+        // Store dirty repos for the "view changes" action
+        state.updateDirtyRepos = dirty;
 
         if (!hasUpdates && !updateInProgress && !data.last_error) {
           if (elUpdateBanner) elUpdateBanner.classList.add("hidden");
@@ -1828,13 +1832,16 @@
           elUpdateDetail.textContent = buildUpdateDetail(repos, data.last_error || "");
         }
         if (elUpdateAction) {
-          elUpdateAction.disabled = updateInProgress || !canUpdate;
+          // Only disable during update in progress
+          elUpdateAction.disabled = updateInProgress;
+          // Store action type for click handler
+          elUpdateAction.dataset.actionType = hasDirtyBlockers ? "view-dirty" : "update";
         }
         if (elUpdateActionLabel) {
           if (updateInProgress) {
             elUpdateActionLabel.textContent = "Updating...";
-          } else if (!canUpdate) {
-            elUpdateActionLabel.textContent = "Clean repo to update";
+          } else if (hasDirtyBlockers) {
+            elUpdateActionLabel.textContent = "View uncommitted changes";
           } else {
             elUpdateActionLabel.textContent = "Update now";
           }
@@ -2351,7 +2358,25 @@
       if (elUpdateAction) {
         elUpdateAction.addEventListener("click", () => {
           state.updateDismissed = false;
-          runUpdateNow();
+          const actionType = elUpdateAction.dataset.actionType;
+          if (actionType === "view-dirty") {
+            // Scroll to the first dirty repo's service card
+            const dirtyRepos = state.updateDirtyRepos || [];
+            if (dirtyRepos.length > 0) {
+              const repoName = dirtyRepos[0].name;
+              // Find a service card that uses this repo
+              const card = document.querySelector(`[data-repo-name="${repoName}"]`);
+              if (card) {
+                card.scrollIntoView({ behavior: "smooth", block: "center" });
+                // Flash the card to draw attention
+                card.classList.add("ring-2", "ring-amber-400");
+                setTimeout(() => card.classList.remove("ring-2", "ring-amber-400"), 2000);
+              }
+              showToast("warning", "Uncommitted changes", `Commit or stash changes in ${repoName} before updating.`);
+            }
+          } else {
+            runUpdateNow();
+          }
         });
       }
       if (elUpdateDismiss) {

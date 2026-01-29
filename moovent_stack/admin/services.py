@@ -332,6 +332,7 @@ class StackManager:
                 "restart_count": self.restart_counts.get(name, 0),
                 "desired_running": self.desired_running.get(name, False),
                 "repo_root": str(spec.repo) if spec.repo else "",
+                "repo_name": spec.repo.name if spec.repo else "",
                 "alert": alert,
             })
         return out
