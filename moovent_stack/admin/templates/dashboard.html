@@ -1170,7 +1170,11 @@
             const gitBranchDisplay = (gitOk && git.branch_display) || "main";
             const gitBranchRaw = (gitOk && git.branch_raw) || "";
             const hasPendingChanges = gitOk && git.dirty;
-            const gitBranches = (gitOk && git.branches) || [];
+            // Backend returns branches_local and branches_remote; combine them for the dropdown
+            const localBranches = (gitOk && git.branches_local) || [];
+            const remoteBranches = (gitOk && git.branches_remote) || [];
+            // Merge: local first, then remote branches not already in local
+            const gitBranches = [...localBranches, ...remoteBranches.filter(b => !localBranches.includes(b))];
             const selectedGitBranch = state.gitSelected[svc.name] || gitBranchRaw || "";
             const gitBranchOptions = gitBranches.length
               ? gitBranches.map((branch) => {
