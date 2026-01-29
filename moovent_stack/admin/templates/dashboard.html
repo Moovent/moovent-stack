@@ -1191,7 +1191,6 @@
 
             const gitError = (git && git.error) ? git.error : (!gitOk ? "not_git_repo" : "");
             const gitErrorText = gitError ? gitErrorMessage(gitError) : "";
-            const gitMessage = git && git.message ? git.message : "";
 
             // GitHub info
             const gh = state.github || {};
@@ -1288,7 +1287,6 @@
                       '</button>' +
                     '</div>' +
                     (gitErrorText ? '<p class="mt-1 text-xs text-red-600">' + gitErrorText + '</p>' : '') +
-                    (gitMessage ? '<p class="mt-1 text-xs text-emerald-600">' + gitMessage + '</p>' : '') +
                   '</div>' +
 
                   // Technical details (hidden by default)
