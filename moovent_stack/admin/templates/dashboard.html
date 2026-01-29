@@ -1280,31 +1280,6 @@
                     (gitMessage ? '<p class="mt-1 text-xs text-emerald-600">' + gitMessage + '</p>' : '') +
                   '</div>' +
 
-                  // GitHub section (only if connected)
-                  (ghConnected ? (
-                    '<div class="pt-3 border-t border-slate-100">' +
-                      '<label class="text-xs font-medium text-slate-600 mb-1.5 block flex items-center gap-1.5">' +
-                        '<i data-lucide="github" class="w-3.5 h-3.5"></i> Connect to GitHub repository' +
-                      '</label>' +
-                      '<div class="flex flex-col gap-2">' +
-                        '<select data-github-repo-select="' + svc.name + '" class="py-2 px-3 text-xs border border-slate-200 rounded-lg bg-white">' +
-                          '<option value="">Choose repository...</option>' +
-                          repoOptions +
-                        '</select>' +
-                        '<div class="flex gap-2">' +
-                          '<select data-github-branch-select="' + svc.name + '" class="flex-1 py-2 px-3 text-xs border border-slate-200 rounded-lg bg-white" ' + (selectedRepo ? "" : "disabled") + '>' +
-                            githubBranchOptions +
-                          '</select>' +
-                          '<button data-github-action="connect" data-service="' + svc.name + '" ' + connectDisabled + ' class="py-2 px-3 text-xs font-medium rounded-lg bg-slate-800 text-white hover:bg-slate-900 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5">' +
-                            '<i data-lucide="link" class="w-3.5 h-3.5"></i> Connect' +
-                          '</button>' +
-                        '</div>' +
-                      '</div>' +
-                      (ghErrorText ? '<p class="mt-1 text-xs text-red-600">' + ghErrorText + '</p>' : '') +
-                      (ghMessage ? '<p class="mt-1 text-xs text-emerald-600">' + ghMessage + '</p>' : '') +
-                    '</div>'
-                  ) : '') +
-
                   // Technical details (hidden by default)
                   '<div class="pt-3 border-t border-slate-100">' +
                     '<p class="text-[10px] text-slate-400">Port ' + (svc.port || "--") + ' | Uptime ' + formatDuration(svc.uptime_s) + '</p>' +
@@ -1333,6 +1308,7 @@
         try {
           const res = await fetch(`/api/git/${encodeURIComponent(name)}${query}`);
           const data = await res.json();
+          if (DEBUG_UI) console.log("[git] fetchGitInfo response", { name, data });
           const current = state.gitInfo[name] || {};
           const merged = { ...current, ...data };
           if (data.ok) {
@@ -1344,10 +1320,12 @@
           state.gitInfo[name] = merged;
           const branchRaw = data.branch_raw || "";
           const branches = Array.isArray(data.branches) ? data.branches : [];
+          if (DEBUG_UI) console.log("[git] branches for", name, ":", branches);
           if (branchRaw && (!state.gitSelected[name] || !branches.includes(state.gitSelected[name]))) {
             state.gitSelected[name] = branchRaw;
           }
         } catch (err) {
+          console.error("[git] fetchGitInfo failed", { name, err });
           state.gitInfo[name] = { ok: false, error: "git_fetch_failed" };
         } finally {
           state.gitLoading[name] = false;

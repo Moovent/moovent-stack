@@ -16,6 +16,7 @@
 - Fix: log switching is more robust when changing tabs quickly (prevents stale responses overwriting current logs).
 - UX: added green "Turn on" button with confirmation modal (appears when all services are stopped, replaces red "Shutdown" button).
 - Debug: enabled verbose console logging by default to diagnose dropdown auto-close issue.
+- Removed: "Connect to GitHub repository" section from Options (not needed).
 - New: Admin module structure for maintainability:
   - `admin/__init__.py` — Entry point (`main()`) and orchestration
   - `admin/__main__.py` — Allows `python -m moovent_stack.admin`
