@@ -1616,6 +1616,28 @@
           
           return `<div class="log-line"><span class="log-time">[${time}]</span> <span class="log-level ${levelClass}">${level}</span> ${component}<span class="log-message">${message}</span>${extraHtml}</div>`;
         }
+
+        // Plain text log line with a recognizable level (e.g. "[7:07:30 PM] INFO [main] ...")
+        try {
+          const m = raw.match(/^(?:\[[^\]]+\]\s*)?(INFO|WARNING|WARN|ERROR|DEBUG)\b\s*(?:\[(.*?)\]\s*)?(.*)$/);
+          if (m) {
+            const level = (m[1] || "INFO").toUpperCase();
+            const componentRaw = (m[2] || "").trim();
+            const messageRaw = (m[3] || "").trim();
+            const levelClass = {
+              "INFO": "log-level-info",
+              "WARNING": "log-level-warning",
+              "WARN": "log-level-warning",
+              "ERROR": "log-level-error",
+              "DEBUG": "log-level-debug",
+            }[level] || "log-level-info";
+            const component = componentRaw ? `<span class="log-component">[${escapeHtml(componentRaw)}]</span> ` : "";
+            const message = escapeHtml(messageRaw || raw);
+            return `<div class="log-line"><span class="log-time">[${time}]</span> <span class="log-level ${levelClass}">${level}</span> ${component}<span class="log-message">${message}</span></div>`;
+          }
+        } catch (e) {
+          // Fall back to plain text.
+        }
         
         // Plain text fallback
         return `<div class="log-line"><span class="log-time">[${time}]</span> <span class="log-message">${escapeHtml(raw)}</span></div>`;
