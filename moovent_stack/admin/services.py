@@ -238,7 +238,33 @@ class StackManager:
             return False
         self.restart_counts[name] = self.restart_counts.get(name, 0) + 1
         self.log_store.append(name, "[runner] restart requested")
+        # Stop -> wait -> start (prevents transient EADDRINUSE on fast restarts).
+        old_pid = None
+        try:
+            proc = self.procs.get(name)
+            if proc and getattr(proc, "pid", None):
+                old_pid = int(proc.pid)
+        except Exception:
+            old_pid = None
+
         self.stop(name)
+
+        # Wait briefly for the old process/port to release.
+        # If the port is held by a different PID, do not start (avoids flapping).
+        if spec.port:
+            deadline = time.time() + 8.0
+            while time.time() < deadline:
+                listeners = tcp_listen_pids(int(spec.port), ttl_s=0.25)
+                if not listeners and not tcp_open_any(int(spec.port), timeout_s=0.2):
+                    break
+                if old_pid is not None and listeners and any(p != old_pid for p in listeners):
+                    self.log_store.append(
+                        name,
+                        f"[runner] restart blocked: port {int(spec.port)} in use by PID(s): {', '.join(str(p) for p in listeners[:5])}",
+                    )
+                    return False
+                time.sleep(0.25)
+
         return self.start(name)
 
     def start_all(self) -> None:

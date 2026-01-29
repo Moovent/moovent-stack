@@ -1317,7 +1317,7 @@
 
               // Alert (if any)
               // UX: For MQTT Backend, avoid an inline red card (toast-only).
-              ((svc.alert && svc.name !== "mqtt-backend") ? renderAlert(svc.alert) : "") +
+              ((svc.alert && friendlyName !== "MQTT Backend" && svc.name !== "mqtt-backend") ? renderAlert(svc.alert) : "") +
 
               // Quick actions
               '<div class="flex items-center gap-2 mb-3">' +

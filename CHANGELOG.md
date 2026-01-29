@@ -21,6 +21,7 @@
 - Fix: branch dropdown works with backend git schema (ok/is_git, branch/branch_raw, branches/branches_local/branches_remote).
 - UX: service issue toasts now auto-dismiss when the issue is resolved; MQTT Backend issues are toast-only (no inline red alert card).
 - UX: log viewer now colorizes plain-text `INFO/WARN/ERROR/DEBUG` lines (improves MQTT Dashboard log readability).
+- Fix: service restart now waits for process/port release before starting again (reduces “Port already in use” flapping).
 - New: Admin module structure for maintainability:
   - `admin/__init__.py` — Entry point (`main()`) and orchestration
   - `admin/__main__.py` — Allows `python -m moovent_stack.admin`
