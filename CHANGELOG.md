@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1
+- **New**: "Push to GitHub" button appears next to branch name when there are unpushed commits (ahead of origin).
+  - Clicking the button pushes the current branch to GitHub without needing to open a terminal.
+  - Shows success/error toast with details.
+- Note: "Unsaved work" badge still shows for uncommitted changes (can't be pushed directly — commit first).
+
 ## 0.5.0
 - **Major**: Refactored admin dashboard into modular `moovent_stack.admin` package.
 - New: Full-featured **Stack Admin Dashboard** (`http://127.0.0.1:9000`) with:

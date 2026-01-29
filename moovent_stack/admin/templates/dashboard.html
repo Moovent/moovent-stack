@@ -1337,7 +1337,8 @@
                 '<div class="flex items-center gap-2">' +
                   '<i data-lucide="git-branch" class="w-4 h-4 text-slate-500"></i>' +
                   '<span class="text-xs font-medium text-slate-700">' + gitBranchDisplay + '</span>' +
-                  (hasPendingChanges ? '<span class="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded flex items-center gap-1" title="You have files with unsaved changes in this project"><i data-lucide="info" class="w-2.5 h-2.5"></i> Unsaved work</span>' : '') +
+                  (hasPendingChanges ? '<span class="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded flex items-center gap-1" title="You have uncommitted changes in this project"><i data-lucide="info" class="w-2.5 h-2.5"></i> Unsaved work</span>' : '') +
+                  (gitOk && gitAhead > 0 && !hasPendingChanges ? '<button data-git-action="push" data-service="' + svc.name + '" class="text-[10px] px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded flex items-center gap-1 hover:bg-indigo-200 cursor-pointer" title="Push ' + gitAhead + ' commit(s) to GitHub"><i data-lucide="upload" class="w-2.5 h-2.5"></i> Push to GitHub</button>' : '') +
                 '</div>' +
                 '<button onclick="toggleDetails(\'' + svc.name + '\')" class="text-xs text-slate-500 hover:text-slate-700 flex items-center gap-1">' +
                   '<i data-lucide="settings-2" class="w-3.5 h-3.5"></i> Options' +
@@ -1521,6 +1522,44 @@
         } catch (err) {
           state.gitInfo[name] = { ...(state.gitInfo[name] || {}), error: "pull_failed" };
           showToast("error", "Something went wrong", "Could not update to latest");
+          renderServices(false);
+        }
+      }
+
+      async function pushToGitHub(name) {
+        if (!name) return;
+        const serviceName = friendlyServiceName(name);
+        showToast("info", "Pushing to GitHub...", "Uploading commits to remote");
+        try {
+          const res = await fetch(`/api/git/${encodeURIComponent(name)}/push`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          });
+          const data = await res.json();
+          if (!data.ok) {
+            const code = data.error || "push_failed";
+            const errorMessages = {
+              push_failed: "Push failed. Check your network and try again.",
+              push_rejected: "Push rejected. Remote has changes you don't have locally.",
+              no_remote: "No remote configured for this repository.",
+              detached_head: "Cannot push in detached HEAD state.",
+              not_a_git_repo: "Not a git repository.",
+            };
+            showToast("error", "Push failed", errorMessages[code] || data.detail || code);
+            renderServices(false);
+            return;
+          }
+          const status = data.status || "pushed";
+          if (status === "up_to_date") {
+            showToast("success", "Already in sync", "Nothing to push");
+          } else {
+            showToast("success", "Pushed to GitHub", data.detail || "Commits uploaded successfully");
+          }
+          await refreshGit(true);
+          renderServices(false);
+        } catch (err) {
+          showToast("error", "Something went wrong", "Could not push to GitHub");
           renderServices(false);
         }
       }
@@ -1958,6 +1997,8 @@
             showGitUpdateModal(name);
           } else if (action === "refresh") {
             fetchGitInfo(name, true).then(() => renderServices(false));
+          } else if (action === "push") {
+            pushToGitHub(name);
           }
           return;
         }

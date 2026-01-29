@@ -38,7 +38,7 @@ from .github import (
     git_connect_repo,
     GitHubState,
 )
-from .git_ops import GitCache, git_checkout_branch, git_pull_latest
+from .git_ops import GitCache, git_checkout_branch, git_pull_latest, git_push_branch
 from .updates import UpdateState
 
 if TYPE_CHECKING:
@@ -444,6 +444,24 @@ def build_admin_server(
                         "status": code,  # "updated" | "up_to_date"
                         "detail": detail,
                         "restarted": restarted,
+                    })
+                    return
+
+                if action == "push":
+                    ok, code, detail = git_push_branch(spec.repo)
+                    if not ok:
+                        self._send_json({"ok": False, "error": code, "detail": detail})
+                        return
+
+                    git_cache.invalidate(spec.repo)
+                    for svc_name in manager.services_for_repo(spec.repo):
+                        manager.log_store.append(svc_name, f"[runner] git push origin")
+
+                    self._send_json({
+                        "ok": True,
+                        "service": name,
+                        "status": code,  # "pushed" | "up_to_date"
+                        "detail": detail,
                     })
                     return
                 

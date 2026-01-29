@@ -361,6 +361,63 @@ def git_checkout_branch(repo: Path, branch: str) -> tuple[bool, str]:
     return False, out
 
 
+def git_push_branch(repo: Path) -> tuple[bool, str, str]:
+    """
+    Push current branch to origin.
+
+    Returns (ok, status_code, detail).
+
+    Status codes:
+    - pushed: successfully pushed
+    - up_to_date: nothing to push (already in sync)
+    
+    Error codes:
+    - not_a_git_repo
+    - detached_head
+    - no_remote
+    - push_failed
+    - push_rejected
+    """
+    if not (repo / ".git").exists():
+        return False, "not_a_git_repo", ""
+
+    ok, branch = git_cmd(repo, ["rev-parse", "--abbrev-ref", "HEAD"])
+    if not ok:
+        return False, "push_failed", branch
+    if branch == "HEAD":
+        return False, "detached_head", ""
+
+    # Check if remote exists
+    ok, remote = git_cmd(repo, ["remote", "get-url", "origin"])
+    if not ok:
+        return False, "no_remote", ""
+
+    # Check ahead count to see if there's anything to push
+    origin_ref = _origin_ref(branch)
+    ok, counts = git_cmd(repo, ["rev-list", "--left-right", "--count", f"HEAD...{origin_ref}"])
+    ahead = 0
+    if ok:
+        parts = counts.split()
+        if len(parts) == 2:
+            try:
+                ahead = int(parts[0])
+            except ValueError:
+                ahead = 0
+    
+    if ahead <= 0:
+        return True, "up_to_date", "Already in sync with remote"
+
+    # Push to origin
+    ok, out = git_cmd(repo, ["push", "-u", "origin", branch], timeout_s=UPDATE_GIT_TIMEOUT_S)
+    if not ok:
+        msg = (out or "").lower()
+        if "rejected" in msg or "non-fast-forward" in msg:
+            return False, "push_rejected", out
+        return False, "push_failed", out
+
+    return True, "pushed", f"Pushed {ahead} commit(s) to origin/{branch}"
+
+
 class GitCache:
     """
     Thread-safe cache for git info to avoid repeated subprocess calls.
