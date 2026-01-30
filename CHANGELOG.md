@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.2
+- **New**: Per-repo Infisical environment switching (dev/prod).
+  - Each service card now shows an environment badge (DEV = blue, PROD = red).
+  - Click the badge to open a modal and switch between Development and Production databases.
+  - Switching automatically re-fetches secrets from the selected Infisical environment and restarts affected services.
+  - Access is controlled by your Infisical Machine Identity permissions.
+  - Environment preference is saved per-repo in `~/.moovent_stack_config.json`.
+
 ## 0.5.1
 - **New**: "Push to GitHub" button appears next to branch name when there are unpushed commits (ahead of origin).
   - Clicking the button pushes the current branch to GitHub without needing to open a terminal.

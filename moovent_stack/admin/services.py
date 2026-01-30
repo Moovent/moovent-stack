@@ -280,6 +280,53 @@ class StackManager:
         for name in self.services:
             self.restart(name)
 
+    def switch_repo_environment(self, name: str, environment: str) -> bool:
+        """
+        Switch a service to a different Infisical environment and restart.
+        
+        This fetches fresh secrets from the specified environment and updates
+        the service's env dict before restarting.
+        
+        Args:
+            name: Service name
+            environment: Infisical environment (e.g., "dev", "prod")
+            
+        Returns:
+            True if service was restarted successfully
+        """
+        spec = self.services.get(name)
+        if not spec:
+            return False
+        
+        # Import here to avoid circular imports
+        from ..infisical import _fetch_secrets_for_environment
+        from ..config import DEFAULT_INFISICAL_EXPORT_KEYS, INFISICAL_EXPORT_KEYS_ENV
+        import os
+        
+        # Get the list of keys to export (defaults + any user-specified extras)
+        keys = set(DEFAULT_INFISICAL_EXPORT_KEYS)
+        raw_extra = os.environ.get(INFISICAL_EXPORT_KEYS_ENV, "").strip()
+        if raw_extra:
+            keys.update([k.strip() for k in raw_extra.split(",") if k.strip()])
+        
+        # Fetch secrets from the new environment
+        new_secrets = _fetch_secrets_for_environment(environment, list(keys))
+        
+        if new_secrets:
+            # Update the service's env dict with new secrets
+            # (don't overwrite existing non-secret env vars)
+            for key, value in new_secrets.items():
+                spec.env[key] = value
+            
+            # Also set INFISICAL_ENVIRONMENT so the service knows which env it's in
+            spec.env["INFISICAL_ENVIRONMENT"] = environment
+            
+            self.log_store.append(name, f"[runner] injected {len(new_secrets)} secrets from env={environment}")
+        else:
+            self.log_store.append(name, f"[runner] WARNING: no secrets fetched from env={environment}")
+        
+        return self.restart(name)
+
     def is_running(self, name: str) -> bool:
         proc = self.procs.get(name)
         if not proc:
@@ -317,6 +364,9 @@ class StackManager:
                     alert["port"] = int(spec.port)
                     alert["listener_pids"] = tcp_listen_pids(int(spec.port))[:5]
             
+            # Get current Infisical environment for this repo
+            infisical_env = spec.env.get("INFISICAL_ENVIRONMENT", "dev") if spec.env else "dev"
+            
             out.append({
                 "name": name,
                 "pid": getattr(proc, "pid", None) if proc else None,
@@ -333,6 +383,7 @@ class StackManager:
                 "desired_running": self.desired_running.get(name, False),
                 "repo_root": str(spec.repo) if spec.repo else "",
                 "repo_name": spec.repo.name if spec.repo else "",
+                "infisical_env": infisical_env,
                 "alert": alert,
             })
         return out

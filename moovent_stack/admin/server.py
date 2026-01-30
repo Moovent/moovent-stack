@@ -298,6 +298,28 @@ def build_admin_server(
                 self._serve_sse(name, last_id)
                 return
 
+            # Infisical environment info for a repo
+            if path.startswith("/api/repo/") and path.endswith("/environment"):
+                # Parse: /api/repo/{repo_name}/environment
+                _, _, tail = path.partition("/api/repo/")
+                repo_name = unquote(tail.rsplit("/environment", 1)[0])
+                if not repo_name:
+                    self._send_json({"error": "bad_request"}, status=400)
+                    return
+                
+                from ..storage import _get_repo_environment
+                from ..infisical import _get_available_environments
+                
+                current_env = _get_repo_environment(repo_name, default="dev")
+                available_envs = _get_available_environments()
+                
+                self._send_json({
+                    "repo": repo_name,
+                    "current": current_env,
+                    "available": available_envs,
+                })
+                return
+
             self._send_json({"error": "not_found"}, status=404)
 
         def do_POST(self) -> None:  # noqa: N802
@@ -481,6 +503,54 @@ def build_admin_server(
                     self._send_json({"error": "unknown_action"}, status=400)
                     return
                 self._send_json({"ok": True, "action": action})
+                return
+
+            # Switch Infisical environment for a repo
+            if path.startswith("/api/repo/") and path.endswith("/environment"):
+                # Parse: /api/repo/{repo_name}/environment
+                _, _, tail = path.partition("/api/repo/")
+                repo_name = unquote(tail.rsplit("/environment", 1)[0])
+                if not repo_name:
+                    self._send_json({"error": "bad_request"}, status=400)
+                    return
+                
+                payload = self._read_json_body()
+                new_env = str(payload.get("environment") or "").strip().lower()
+                if new_env not in ("dev", "prod"):
+                    self._send_json({"error": "invalid_environment", "detail": "Must be 'dev' or 'prod'"}, status=400)
+                    return
+                
+                from ..storage import _set_repo_environment, _get_repo_environment
+                from ..infisical import _check_environment_access
+                
+                # Check user has access to this environment
+                if not _check_environment_access(new_env):
+                    self._send_json({
+                        "ok": False,
+                        "error": "access_denied",
+                        "detail": f"No access to '{new_env}' environment in Infisical",
+                    }, status=403)
+                    return
+                
+                old_env = _get_repo_environment(repo_name, default="dev")
+                _set_repo_environment(repo_name, new_env)
+                
+                # Restart services for this repo with new environment
+                restarted: list[str] = []
+                for svc_name, spec in manager.services.items():
+                    if spec.repo and spec.repo.name == repo_name:
+                        manager.log_store.append(svc_name, f"[runner] switching env: {old_env} → {new_env}")
+                        # Update the service's environment and restart
+                        manager.switch_repo_environment(svc_name, new_env)
+                        restarted.append(svc_name)
+                
+                self._send_json({
+                    "ok": True,
+                    "repo": repo_name,
+                    "environment": new_env,
+                    "previous": old_env,
+                    "restarted": restarted,
+                })
                 return
 
             self._send_json({"error": "not_found"}, status=404)

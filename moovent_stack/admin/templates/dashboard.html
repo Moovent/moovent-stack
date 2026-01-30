@@ -222,6 +222,100 @@
       </div>
     </div>
 
+    <!-- Environment Switch Modal -->
+    <div id="env-switch-modal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+      <div class="flex min-h-screen items-center justify-center p-4">
+        <div class="fixed inset-0 bg-gray-900/70 backdrop-blur-sm" id="env-switch-modal-backdrop"></div>
+        <div class="relative w-full max-w-md bg-white border border-gray-200 rounded-xl shadow-xl">
+          <div class="p-6">
+            <!-- Header -->
+            <div class="flex items-start gap-4 mb-4">
+              <div id="env-switch-icon" class="flex-shrink-0 w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                <i data-lucide="database" class="w-6 h-6 text-blue-700"></i>
+              </div>
+              <div class="min-w-0">
+                <h3 class="text-lg font-semibold text-gray-900">Switch Environment</h3>
+                <p class="text-sm text-gray-500 mt-1">
+                  Change the Infisical environment for <span id="env-switch-repo" class="font-medium">--</span>
+                </p>
+              </div>
+            </div>
+
+            <!-- Current environment -->
+            <div class="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <div class="text-xs text-gray-600">
+                <span class="font-medium text-gray-700">Current environment:</span>
+                <span id="env-switch-current" class="ml-1 uppercase font-semibold">--</span>
+              </div>
+            </div>
+
+            <!-- Environment selection -->
+            <div class="mb-4">
+              <label class="text-sm font-medium text-gray-700 mb-2 block">Select environment:</label>
+              <div class="flex gap-3">
+                <button
+                  id="env-switch-dev"
+                  class="flex-1 py-3 px-4 rounded-lg border-2 border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors flex flex-col items-center gap-1"
+                >
+                  <i data-lucide="code" class="w-5 h-5"></i>
+                  <span class="text-sm font-medium">Development</span>
+                  <span class="text-[10px] text-blue-600">Test database</span>
+                </button>
+                <button
+                  id="env-switch-prod"
+                  class="flex-1 py-3 px-4 rounded-lg border-2 border-red-200 bg-red-50 text-red-700 hover:bg-red-100 transition-colors flex flex-col items-center gap-1"
+                >
+                  <i data-lucide="alert-circle" class="w-5 h-5"></i>
+                  <span class="text-sm font-medium">Production</span>
+                  <span class="text-[10px] text-red-600">Live database</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Warning for prod -->
+            <div id="env-switch-warning" class="hidden mb-4 p-3 rounded-lg bg-red-50 border border-red-200">
+              <p class="text-xs font-medium text-red-700">⚠️ Production environment</p>
+              <p class="mt-1 text-[11px] text-red-600">
+                You are about to connect to the live production database. Changes will affect real data.
+              </p>
+            </div>
+
+            <!-- Loading state -->
+            <div id="env-switch-loading" class="hidden mb-4 p-3 rounded-lg bg-gray-50 border border-gray-200">
+              <p class="text-xs text-gray-600 flex items-center gap-2">
+                <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+                Switching environment...
+              </p>
+            </div>
+
+            <!-- Error state -->
+            <div id="env-switch-error" class="hidden mb-4 p-3 rounded-lg bg-red-50 border border-red-200">
+              <p class="text-xs font-medium text-red-700">Access denied</p>
+              <p id="env-switch-error-detail" class="mt-1 text-[11px] text-red-600"></p>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex items-center justify-end gap-3">
+              <button
+                id="env-switch-cancel"
+                class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                id="env-switch-confirm"
+                disabled
+                class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                Switch & Restart
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="min-h-screen">
       <!-- Modern branded header -->
       <header class="sticky top-0 z-40 bg-white/80 backdrop-blur-lg border-b border-slate-200/60">
@@ -1299,13 +1393,26 @@
             const detailsOpenClass = detailsIsOpen ? " open" : "";
 
             const repoName = svc.repo_name || "";
+            const infisicalEnv = svc.infisical_env || "dev";
+            const envBadgeClass = infisicalEnv === "prod" 
+              ? "bg-red-100 text-red-700 border-red-200" 
+              : "bg-blue-100 text-blue-700 border-blue-200";
+            const envBadgeIcon = infisicalEnv === "prod" ? "alert-circle" : "code";
+            
             return '<div class="service-card p-4 bg-white border border-slate-200 rounded-xl transition-shadow" data-repo-name="' + repoName + '">' +
-              // Header: Name + Status
+              // Header: Name + Status + Env Badge
               '<div class="flex items-center justify-between mb-3">' +
                 '<div class="flex items-center gap-3">' +
                   '<div class="status-dot ' + statusDot + '"></div>' +
                   '<div>' +
-                    '<h3 class="text-sm font-semibold text-slate-800">' + friendlyName + '</h3>' +
+                    '<div class="flex items-center gap-2">' +
+                      '<h3 class="text-sm font-semibold text-slate-800">' + friendlyName + '</h3>' +
+                      (repoName ? '<button data-env-toggle="' + repoName + '" class="text-[10px] px-1.5 py-0.5 rounded border ' + envBadgeClass + ' flex items-center gap-1 cursor-pointer hover:opacity-80" title="Click to switch environment">' +
+                        '<i data-lucide="' + envBadgeIcon + '" class="w-2.5 h-2.5"></i>' +
+                        '<span class="uppercase font-medium">' + infisicalEnv + '</span>' +
+                        '<i data-lucide="chevron-down" class="w-2.5 h-2.5"></i>' +
+                      '</button>' : '') +
+                    '</div>' +
                     '<p class="text-xs ' + statusColor + '">' + statusText + '</p>' +
                   '</div>' +
                 '</div>' +
@@ -1981,6 +2088,16 @@
       }
 
       elServices.addEventListener("click", (evt) => {
+        // Environment toggle button
+        const envBtn = evt.target.closest("button[data-env-toggle]");
+        if (envBtn) {
+          const repoName = envBtn.getAttribute("data-env-toggle");
+          if (repoName) {
+            showEnvSwitchModal(repoName);
+          }
+          return;
+        }
+
         const githubBtn = evt.target.closest("button[data-github-action]");
         if (githubBtn) {
           const name = githubBtn.getAttribute("data-service");
@@ -2354,6 +2471,178 @@
       if (elGitUpdateCancel) elGitUpdateCancel.addEventListener("click", hideGitUpdateModal);
       if (elGitUpdateBackdrop) elGitUpdateBackdrop.addEventListener("click", hideGitUpdateModal);
       if (elGitUpdateConfirm) elGitUpdateConfirm.addEventListener("click", confirmGitUpdate);
+
+      // Environment switch modal
+      const elEnvSwitchModal = document.getElementById("env-switch-modal");
+      const elEnvSwitchBackdrop = document.getElementById("env-switch-modal-backdrop");
+      const elEnvSwitchCancel = document.getElementById("env-switch-cancel");
+      const elEnvSwitchConfirm = document.getElementById("env-switch-confirm");
+      const elEnvSwitchRepo = document.getElementById("env-switch-repo");
+      const elEnvSwitchCurrent = document.getElementById("env-switch-current");
+      const elEnvSwitchDev = document.getElementById("env-switch-dev");
+      const elEnvSwitchProd = document.getElementById("env-switch-prod");
+      const elEnvSwitchWarning = document.getElementById("env-switch-warning");
+      const elEnvSwitchLoading = document.getElementById("env-switch-loading");
+      const elEnvSwitchError = document.getElementById("env-switch-error");
+      const elEnvSwitchErrorDetail = document.getElementById("env-switch-error-detail");
+
+      state.envSwitchTarget = null;
+      state.envSwitchSelected = null;
+
+      function showEnvSwitchModal(repoName) {
+        // Find the current environment from the first service using this repo
+        let currentEnv = "dev";
+        for (const svc of state.services) {
+          if (svc.repo_name === repoName && svc.infisical_env) {
+            currentEnv = svc.infisical_env;
+            break;
+          }
+        }
+
+        state.envSwitchTarget = repoName;
+        state.envSwitchSelected = null;
+
+        if (elEnvSwitchRepo) elEnvSwitchRepo.textContent = repoName;
+        if (elEnvSwitchCurrent) {
+          elEnvSwitchCurrent.textContent = currentEnv;
+          elEnvSwitchCurrent.className = currentEnv === "prod" 
+            ? "ml-1 uppercase font-semibold text-red-600" 
+            : "ml-1 uppercase font-semibold text-blue-600";
+        }
+
+        // Reset button states
+        if (elEnvSwitchDev) {
+          elEnvSwitchDev.className = currentEnv === "dev"
+            ? "flex-1 py-3 px-4 rounded-lg border-2 border-blue-500 bg-blue-100 text-blue-700 flex flex-col items-center gap-1 ring-2 ring-blue-500"
+            : "flex-1 py-3 px-4 rounded-lg border-2 border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors flex flex-col items-center gap-1 cursor-pointer";
+        }
+        if (elEnvSwitchProd) {
+          elEnvSwitchProd.className = currentEnv === "prod"
+            ? "flex-1 py-3 px-4 rounded-lg border-2 border-red-500 bg-red-100 text-red-700 flex flex-col items-center gap-1 ring-2 ring-red-500"
+            : "flex-1 py-3 px-4 rounded-lg border-2 border-red-200 bg-red-50 text-red-700 hover:bg-red-100 transition-colors flex flex-col items-center gap-1 cursor-pointer";
+        }
+
+        // Hide warning, error, loading
+        if (elEnvSwitchWarning) elEnvSwitchWarning.classList.add("hidden");
+        if (elEnvSwitchLoading) elEnvSwitchLoading.classList.add("hidden");
+        if (elEnvSwitchError) elEnvSwitchError.classList.add("hidden");
+
+        // Disable confirm button until user selects a different env
+        if (elEnvSwitchConfirm) elEnvSwitchConfirm.disabled = true;
+
+        if (elEnvSwitchModal) elEnvSwitchModal.classList.remove("hidden");
+        if (window.lucide) lucide.createIcons();
+      }
+
+      function hideEnvSwitchModal() {
+        if (elEnvSwitchModal) elEnvSwitchModal.classList.add("hidden");
+        state.envSwitchTarget = null;
+        state.envSwitchSelected = null;
+      }
+
+      function selectEnvSwitchOption(env) {
+        // Find current env
+        let currentEnv = "dev";
+        for (const svc of state.services) {
+          if (svc.repo_name === state.envSwitchTarget && svc.infisical_env) {
+            currentEnv = svc.infisical_env;
+            break;
+          }
+        }
+
+        state.envSwitchSelected = env;
+
+        // Update button styles
+        if (elEnvSwitchDev) {
+          elEnvSwitchDev.className = env === "dev"
+            ? "flex-1 py-3 px-4 rounded-lg border-2 border-blue-500 bg-blue-100 text-blue-700 flex flex-col items-center gap-1 ring-2 ring-blue-500"
+            : "flex-1 py-3 px-4 rounded-lg border-2 border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors flex flex-col items-center gap-1 cursor-pointer";
+        }
+        if (elEnvSwitchProd) {
+          elEnvSwitchProd.className = env === "prod"
+            ? "flex-1 py-3 px-4 rounded-lg border-2 border-red-500 bg-red-100 text-red-700 flex flex-col items-center gap-1 ring-2 ring-red-500"
+            : "flex-1 py-3 px-4 rounded-lg border-2 border-red-200 bg-red-50 text-red-700 hover:bg-red-100 transition-colors flex flex-col items-center gap-1 cursor-pointer";
+        }
+
+        // Show/hide warning for prod
+        if (elEnvSwitchWarning) {
+          if (env === "prod") {
+            elEnvSwitchWarning.classList.remove("hidden");
+          } else {
+            elEnvSwitchWarning.classList.add("hidden");
+          }
+        }
+
+        // Enable confirm if different from current
+        if (elEnvSwitchConfirm) {
+          elEnvSwitchConfirm.disabled = (env === currentEnv);
+          elEnvSwitchConfirm.className = env === "prod"
+            ? "inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            : "inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors";
+        }
+
+        if (window.lucide) lucide.createIcons();
+      }
+
+      async function confirmEnvSwitch() {
+        const repoName = state.envSwitchTarget;
+        const newEnv = state.envSwitchSelected;
+        if (!repoName || !newEnv) return;
+
+        // Show loading
+        if (elEnvSwitchLoading) elEnvSwitchLoading.classList.remove("hidden");
+        if (elEnvSwitchError) elEnvSwitchError.classList.add("hidden");
+        if (elEnvSwitchConfirm) {
+          elEnvSwitchConfirm.disabled = true;
+          elEnvSwitchConfirm.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Switching...';
+          if (window.lucide) lucide.createIcons();
+        }
+
+        try {
+          const res = await fetch(`/api/repo/${encodeURIComponent(repoName)}/environment`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ environment: newEnv }),
+          });
+          const data = await res.json();
+
+          if (data.ok) {
+            hideEnvSwitchModal();
+            const envLabel = newEnv === "prod" ? "Production" : "Development";
+            showToast("success", "Environment switched", `${repoName} is now using ${envLabel} database`);
+            await refreshServices();
+          } else {
+            // Show error
+            if (elEnvSwitchLoading) elEnvSwitchLoading.classList.add("hidden");
+            if (elEnvSwitchError) {
+              elEnvSwitchError.classList.remove("hidden");
+              if (elEnvSwitchErrorDetail) {
+                elEnvSwitchErrorDetail.textContent = data.detail || data.error || "Unknown error";
+              }
+            }
+          }
+        } catch (err) {
+          if (elEnvSwitchLoading) elEnvSwitchLoading.classList.add("hidden");
+          if (elEnvSwitchError) {
+            elEnvSwitchError.classList.remove("hidden");
+            if (elEnvSwitchErrorDetail) {
+              elEnvSwitchErrorDetail.textContent = err.message || "Network error";
+            }
+          }
+        } finally {
+          if (elEnvSwitchConfirm) {
+            elEnvSwitchConfirm.disabled = false;
+            elEnvSwitchConfirm.innerHTML = '<i data-lucide="refresh-cw" class="w-4 h-4"></i> Switch & Restart';
+            if (window.lucide) lucide.createIcons();
+          }
+        }
+      }
+
+      if (elEnvSwitchCancel) elEnvSwitchCancel.addEventListener("click", hideEnvSwitchModal);
+      if (elEnvSwitchBackdrop) elEnvSwitchBackdrop.addEventListener("click", hideEnvSwitchModal);
+      if (elEnvSwitchConfirm) elEnvSwitchConfirm.addEventListener("click", confirmEnvSwitch);
+      if (elEnvSwitchDev) elEnvSwitchDev.addEventListener("click", () => selectEnvSwitchOption("dev"));
+      if (elEnvSwitchProd) elEnvSwitchProd.addEventListener("click", () => selectEnvSwitchOption("prod"));
 
       if (elUpdateAction) {
         elUpdateAction.addEventListener("click", () => {

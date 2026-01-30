@@ -42,3 +42,38 @@ def _save_config(data: dict) -> None:
     current = _load_config()
     current.update(data)
     _save_json(CONFIG_PATH, current)
+
+
+# ---------------------------------------------------------------------------
+# Per-repo Infisical environment storage
+# ---------------------------------------------------------------------------
+def _get_repo_environment(repo_name: str, default: str = "dev") -> str:
+    """
+    Get the Infisical environment for a specific repo.
+    
+    Returns the saved environment or the default if not set.
+    """
+    cfg = _load_config()
+    repo_envs = cfg.get("repo_environments") or {}
+    return repo_envs.get(repo_name, default)
+
+
+def _set_repo_environment(repo_name: str, environment: str) -> None:
+    """
+    Save the Infisical environment preference for a specific repo.
+    """
+    cfg = _load_config()
+    repo_envs = cfg.get("repo_environments") or {}
+    repo_envs[repo_name] = environment
+    cfg["repo_environments"] = repo_envs
+    _save_json(CONFIG_PATH, cfg)
+
+
+def _get_all_repo_environments() -> dict[str, str]:
+    """
+    Get all saved repo environment preferences.
+    
+    Returns dict of repo_name -> environment.
+    """
+    cfg = _load_config()
+    return cfg.get("repo_environments") or {}

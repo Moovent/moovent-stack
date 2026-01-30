@@ -332,6 +332,138 @@ def _fetch_infisical_env_exports(
     return exported
 
 
+# ---------------------------------------------------------------------------
+# Per-repo environment switching
+# ---------------------------------------------------------------------------
+def _check_environment_access(environment: str) -> bool:
+    """
+    Check if the current user has access to the specified Infisical environment.
+    
+    Returns True if we can successfully fetch secrets from that environment.
+    """
+    host, client_id, client_secret = _resolve_infisical_settings()
+    if not (host and client_id and client_secret):
+        return False
+    
+    token = _infisical_login(host, client_id, client_secret)
+    if not token:
+        return False
+    
+    project_id = REQUIRED_INFISICAL_PROJECT_ID
+    secret_path = DEFAULT_INFISICAL_SECRET_PATH
+    
+    # Try to fetch secrets from this environment
+    secrets = _fetch_infisical_secrets(
+        host, token, project_id, environment, secret_path, recursive=False
+    )
+    # If we get any secrets (or empty but no error), access is granted
+    return secrets is not None
+
+
+def _get_available_environments() -> list[str]:
+    """
+    Get list of Infisical environments the user has access to.
+    
+    Checks access to known environments (dev, prod) and returns those accessible.
+    """
+    available = []
+    for env in ["dev", "prod"]:
+        if _check_environment_access(env):
+            available.append(env)
+    return available
+
+
+def _fetch_secrets_for_environment(
+    environment: str,
+    keys: list[str],
+) -> dict[str, str]:
+    """
+    Fetch secrets from a specific Infisical environment.
+    
+    Similar to _fetch_infisical_env_exports but allows specifying the environment.
+    Used when switching a repo's environment at runtime.
+    
+    Args:
+        environment: The Infisical environment (e.g., "dev", "prod")
+        keys: List of secret keys to fetch
+        
+    Returns:
+        Dict of key -> value for found secrets
+    """
+    host, client_id, client_secret = _resolve_infisical_settings()
+    if not (host and client_id and client_secret):
+        log_error("infisical", "Cannot fetch secrets: missing Infisical credentials")
+        return {}
+    
+    wanted = [str(k).strip() for k in keys if str(k).strip()]
+    if not wanted:
+        return {}
+
+    token = _infisical_login(host, client_id, client_secret)
+    if not token:
+        log_error("infisical", f"Unable to fetch secrets for env={environment}: login failed")
+        return {}
+
+    project_id = REQUIRED_INFISICAL_PROJECT_ID
+    secret_path = DEFAULT_INFISICAL_SECRET_PATH
+    
+    secrets = _fetch_infisical_secrets(
+        host, token, project_id, environment, secret_path, recursive=True
+    )
+    if not secrets:
+        log_error("infisical", f"Unable to fetch secrets for env={environment}: query returned empty")
+        return {}
+
+    def _first_nonempty(*candidates: str) -> str:
+        for c in candidates:
+            v = str(secrets.get(c) or "").strip()
+            if v:
+                return v
+        return ""
+
+    def _resolve_required(key: str) -> str:
+        # Support legacy/env-example key names (same logic as _fetch_infisical_env_exports)
+        if key == "BROKER":
+            return _first_nonempty("BROKER", "MQTT_BROKER", "MQTT_HOST")
+        if key == "MQTT_USER":
+            return _first_nonempty("MQTT_USER", "MQTT_USERNAME", "MQTT_USER_NAME")
+        if key == "MQTT_PASS":
+            return _first_nonempty("MQTT_PASS", "MQTT_PASSWORD", "MQTT_PWD")
+        if key == "MONGO_URI":
+            return _first_nonempty("MONGO_URI", "MONGODB_URI", "MONGO_URL")
+        if key == "DB_NAME":
+            direct = _first_nonempty("DB_NAME", "MONGO_DB", "MONGO_DATABASE")
+            if direct:
+                return direct
+            uri = _first_nonempty("MONGO_URI", "MONGODB_URI", "MONGO_URL")
+            if uri and "/" in uri:
+                tail = uri.rsplit("/", 1)[-1].split("?", 1)[0].strip()
+                if tail and "@" not in tail and ":" not in tail:
+                    return tail
+            return "mqtt_dashboard"
+        if key == "MQTT_PORT":
+            return _first_nonempty("MQTT_PORT")
+        if key == "COL_DEVICES":
+            return _first_nonempty("COL_DEVICES") or "devices"
+        if key == "COL_PARKINGS":
+            return _first_nonempty("COL_PARKINGS") or "parkings"
+        if key == "COL_TOTALS":
+            return _first_nonempty("COL_TOTALS") or "totals"
+        if key == "COL_BUCKETS":
+            return _first_nonempty("COL_BUCKETS") or "buckets"
+        # For non-required/unknown keys, export by exact name only.
+        return str(secrets.get(key) or "").strip()
+
+    exported: dict[str, str] = {}
+    for key in wanted:
+        val = _resolve_required(key)
+        if val:
+            exported[key] = val
+
+    log_info("infisical", f"Fetched {len(exported)} secrets from env={environment}")
+    return exported
+
+
 def _fetch_infisical_access(
     host: str, client_id: str, client_secret: str
 ) -> tuple[Optional[bool], str]:
