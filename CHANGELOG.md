@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.3
+- **Fix**: Environment badge icons now render correctly after service restart (Lucide icon timing fix).
+
 ## 0.5.2
 - **New**: Per-repo Infisical environment switching (dev/prod).
   - Each service card now shows an environment badge (DEV = blue, PROD = red).

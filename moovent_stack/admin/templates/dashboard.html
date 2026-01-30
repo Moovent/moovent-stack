@@ -1505,7 +1505,10 @@
           .join("");
 
         // Re-initialize Lucide icons after rendering
-        if (window.lucide) lucide.createIcons();
+        // Use requestAnimationFrame to ensure DOM is fully updated before processing icons
+        requestAnimationFrame(() => {
+          if (window.lucide) lucide.createIcons();
+        });
       }
 
       function toggleDetails(serviceName) {

@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: moovent-stack
-Version: 0.5.2
+Version: 0.5.3
 Summary: Moovent internal developer stack launcher
 Requires-Python: >=3.9
 Description-Content-Type: text/markdown
