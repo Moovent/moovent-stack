@@ -299,7 +299,7 @@ class StackManager:
             return False
         
         # Import here to avoid circular imports
-        from ..infisical import _fetch_secrets_for_environment
+        from ..infisical import _fetch_all_secrets_for_environment, _fetch_secrets_for_environment
         from ..config import DEFAULT_INFISICAL_EXPORT_KEYS, INFISICAL_EXPORT_KEYS_ENV
         import os
         
@@ -309,8 +309,20 @@ class StackManager:
         if raw_extra:
             keys.update([k.strip() for k in raw_extra.split(",") if k.strip()])
         
+        export_all = str(os.environ.get("INFISICAL_EXPORT_ALL") or "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "y",
+            "on",
+        }
+
         # Fetch secrets from the new environment
-        new_secrets = _fetch_secrets_for_environment(environment, list(keys))
+        new_secrets = (
+            _fetch_all_secrets_for_environment(environment)
+            if export_all
+            else _fetch_secrets_for_environment(environment, list(keys))
+        )
         
         if new_secrets:
             # Update the service's env dict with new secrets

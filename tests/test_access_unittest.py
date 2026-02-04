@@ -131,6 +131,43 @@ class TestAccessGuard(unittest.TestCase):
             runner._resolve_infisical_settings = real_resolve_settings
             runner._resolve_infisical_scope = real_resolve_scope
 
+    def test_build_runner_env_exports_all_when_enabled(self):
+        """
+        When INFISICAL_EXPORT_ALL=true, runner should export all secrets (not just defaults).
+        """
+        real_resolve_settings = runner._resolve_infisical_settings
+        real_resolve_scope = runner._resolve_infisical_scope
+        real_fetch_all = runner._fetch_infisical_env_all
+        real_fetch_subset = runner._fetch_infisical_env_exports
+        try:
+            os.environ[config.INFISICAL_EXPORT_ALL_ENV] = "true"
+            runner._resolve_infisical_settings = lambda: (
+                "https://eu.infisical.com",
+                "client_id",
+                "client_secret",
+            )
+            runner._resolve_infisical_scope = lambda: (
+                "project_id",
+                "dev",
+                "/",
+            )
+            runner._fetch_infisical_env_all = lambda *_args, **_kwargs: {
+                "BROKER": "broker",
+                "OPENAI_API_KEY": "sk-test",
+            }
+            runner._fetch_infisical_env_exports = lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("_fetch_infisical_env_exports should not be called when export-all is enabled")
+            )
+
+            env = runner._build_runner_env()
+            self.assertEqual(env.get("OPENAI_API_KEY"), "sk-test")
+        finally:
+            os.environ.pop(config.INFISICAL_EXPORT_ALL_ENV, None)
+            runner._resolve_infisical_settings = real_resolve_settings
+            runner._resolve_infisical_scope = real_resolve_scope
+            runner._fetch_infisical_env_all = real_fetch_all
+            runner._fetch_infisical_env_exports = real_fetch_subset
+
     def test_resolve_github_oauth_settings_prefers_env(self):
         os.environ[config.GITHUB_ENV_CLIENT_ID] = "gh_id"
         os.environ[config.GITHUB_ENV_CLIENT_SECRET] = "gh_secret"

@@ -15,6 +15,7 @@ from .config import (
     DEFAULT_INFISICAL_ENVIRONMENT,
     DEFAULT_INFISICAL_HOST,
     DEFAULT_INFISICAL_SECRET_PATH,
+    DEFAULT_INFISICAL_EXPORT_KEYS,
     INFISICAL_ENV_DEBUG,
     INFISICAL_ENV_CLIENT_ID,
     INFISICAL_ENV_CLIENT_SECRET,
@@ -333,6 +334,60 @@ def _fetch_infisical_env_exports(
 
 
 # ---------------------------------------------------------------------------
+# Export-all (local runner)
+# ---------------------------------------------------------------------------
+def _fetch_infisical_env_all(
+    host: str,
+    client_id: str,
+    client_secret: str,
+) -> dict[str, str]:
+    """
+    Fetch all secrets (recursive) for the current configured scope and return them.
+
+    Purpose:
+    - Allow teams to keep *all* runtime configuration in Infisical and avoid
+      maintaining `.env` files with non-secret settings.
+
+    Security:
+    - Never log secret values.
+    - Caller should pass values via environment only.
+
+    Compatibility:
+    - If canonical keys are missing, we try to derive baseline required keys
+      from legacy aliases (same logic as `_fetch_infisical_env_exports`).
+    """
+    token = _infisical_login(host, client_id, client_secret)
+    if not token:
+        log_error("infisical", "Unable to export all secrets: login failed")
+        return {}
+
+    project_id, environment, secret_path = _resolve_infisical_scope()
+    secrets = _fetch_infisical_secrets(
+        host, token, project_id, environment, secret_path, recursive=True
+    )
+    if not secrets:
+        log_error("infisical", "Unable to export all secrets: secrets query returned empty")
+        return {}
+
+    # Best-effort: ensure baseline keys exist even if stored under legacy names.
+    # This avoids breakage when users migrated from older .env naming.
+    baseline = _fetch_infisical_env_exports(
+        host, client_id, client_secret, list(DEFAULT_INFISICAL_EXPORT_KEYS)
+    )
+    for k, v in baseline.items():
+        secrets.setdefault(k, v)
+
+    # Normalize DB alias for downstream compatibility.
+    if secrets.get("DB_NAME") and not secrets.get("MONGO_DB"):
+        secrets["MONGO_DB"] = secrets["DB_NAME"]
+    if secrets.get("MONGO_DB") and not secrets.get("DB_NAME"):
+        secrets["DB_NAME"] = secrets["MONGO_DB"]
+
+    log_info("infisical", f"Exporting ALL secrets to runtime env: {len(secrets)} keys")
+    return secrets
+
+
+# ---------------------------------------------------------------------------
 # Per-repo environment switching
 # ---------------------------------------------------------------------------
 def _check_environment_access(environment: str) -> bool:
@@ -349,13 +404,10 @@ def _check_environment_access(environment: str) -> bool:
     if not token:
         return False
     
-    project_id = REQUIRED_INFISICAL_PROJECT_ID
-    secret_path = DEFAULT_INFISICAL_SECRET_PATH
+    project_id, _, secret_path = _resolve_infisical_scope()
     
     # Try to fetch secrets from this environment
-    secrets = _fetch_infisical_secrets(
-        host, token, project_id, environment, secret_path, recursive=False
-    )
+    secrets = _fetch_infisical_secrets(host, token, project_id, environment, secret_path, recursive=False)
     # If we get any secrets (or empty but no error), access is granted
     return secrets is not None
 
@@ -404,12 +456,9 @@ def _fetch_secrets_for_environment(
         log_error("infisical", f"Unable to fetch secrets for env={environment}: login failed")
         return {}
 
-    project_id = REQUIRED_INFISICAL_PROJECT_ID
-    secret_path = DEFAULT_INFISICAL_SECRET_PATH
+    project_id, _, secret_path = _resolve_infisical_scope()
     
-    secrets = _fetch_infisical_secrets(
-        host, token, project_id, environment, secret_path, recursive=True
-    )
+    secrets = _fetch_infisical_secrets(host, token, project_id, environment, secret_path, recursive=True)
     if not secrets:
         log_error("infisical", f"Unable to fetch secrets for env={environment}: query returned empty")
         return {}
@@ -462,6 +511,38 @@ def _fetch_secrets_for_environment(
 
     log_info("infisical", f"Fetched {len(exported)} secrets from env={environment}")
     return exported
+
+
+def _fetch_all_secrets_for_environment(environment: str) -> dict[str, str]:
+    """
+    Fetch all secrets (recursive) for a specific Infisical environment.
+
+    Used by per-repo environment switching when INFISICAL_EXPORT_ALL=true.
+    """
+    host, client_id, client_secret = _resolve_infisical_settings()
+    if not (host and client_id and client_secret):
+        log_error("infisical", "Cannot fetch all secrets: missing Infisical credentials")
+        return {}
+
+    token = _infisical_login(host, client_id, client_secret)
+    if not token:
+        log_error("infisical", f"Unable to fetch all secrets for env={environment}: login failed")
+        return {}
+
+    project_id, _, secret_path = _resolve_infisical_scope()
+    secrets = _fetch_infisical_secrets(host, token, project_id, environment, secret_path, recursive=True)
+    if not secrets:
+        log_error("infisical", f"Unable to fetch all secrets for env={environment}: query returned empty")
+        return {}
+
+    # Keep DB alias aligned.
+    if secrets.get("DB_NAME") and not secrets.get("MONGO_DB"):
+        secrets["MONGO_DB"] = secrets["DB_NAME"]
+    if secrets.get("MONGO_DB") and not secrets.get("DB_NAME"):
+        secrets["DB_NAME"] = secrets["MONGO_DB"]
+
+    log_info("infisical", f"Fetched ALL secrets from env={environment}: {len(secrets)} keys")
+    return secrets
 
 
 def _fetch_infisical_access(

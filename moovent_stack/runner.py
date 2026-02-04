@@ -18,9 +18,11 @@ from .config import (
     INFISICAL_ENV_PROJECT_ID,
     INFISICAL_ENV_SECRET_PATH,
     DEFAULT_INFISICAL_EXPORT_KEYS,
+    INFISICAL_EXPORT_ALL_ENV,
     INFISICAL_EXPORT_KEYS_ENV,
 )
 from .infisical import (
+    _fetch_infisical_env_all,
     _fetch_infisical_env_exports,
     _resolve_infisical_scope,
     _resolve_infisical_settings,
@@ -56,6 +58,7 @@ def _build_runner_env() -> dict[str, str]:
 
     # Export required stack secrets (BROKER/MONGO/etc.) from Infisical at runtime.
     # This keeps secrets off disk and avoids startup crashes in mqtt_dashboard_watch.
+    export_all = str(os.environ.get(INFISICAL_EXPORT_ALL_ENV, "")).strip()
     raw_keys = os.environ.get(INFISICAL_EXPORT_KEYS_ENV, "").strip()
     # Always include the required baseline keys so the stack can start.
     # If the user provides an override list, we treat it as "plus these keys".
@@ -63,10 +66,11 @@ def _build_runner_env() -> dict[str, str]:
     if raw_keys:
         keys.update([k.strip() for k in raw_keys.split(",") if k.strip()])
     keys_list = sorted(keys)
-    if host and client_id and client_secret and keys:
-        exported = _fetch_infisical_env_exports(
-            host, client_id, client_secret, keys_list
-        )
+    if host and client_id and client_secret:
+        if export_all and export_all.lower() in {"1", "true", "yes", "y", "on"}:
+            exported = _fetch_infisical_env_all(host, client_id, client_secret)
+        else:
+            exported = _fetch_infisical_env_exports(host, client_id, client_secret, keys_list)
         # Do not override user-provided env keys (caller fills missing only),
         # but include them in overrides for the merge step.
         overrides.update(exported)

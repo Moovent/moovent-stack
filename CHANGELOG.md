@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.4 (unreleased)
+- **Infisical**: Add `INFISICAL_EXPORT_ALL=true` to export all keys from Infisical into the runtime env (recursive).
+  - Applies to local runner injection and per-repo env switching (dev/prod).
+
 ## 0.5.3
 - **Fix**: Environment badge icons now render correctly after service restart (Lucide icon timing fix).
 

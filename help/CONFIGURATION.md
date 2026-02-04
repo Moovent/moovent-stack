@@ -44,7 +44,19 @@ export INFISICAL_HOST="https://eu.infisical.com"
 # These control where secrets are read in Infisical for the child stack:
 export INFISICAL_ENVIRONMENT="dev"   # default: dev
 export INFISICAL_SECRET_PATH="/"     # default: /
+
+# When true, export *all* secrets/config from Infisical into the runtime env
+# of the child stack (recursive). This enables "Infisical is the source of truth"
+# for both secrets and non-secret config flags.
+export INFISICAL_EXPORT_ALL="true"
 ```
+
+### Exported keys (defaults vs export-all)
+
+- Default behavior: `moovent-stack` exports only the baseline keys required for the stack to boot
+  (Mongo/MQTT/collections), plus any extra keys listed in `MOOVENT_INFISICAL_EXPORT_KEYS`.
+- If `INFISICAL_EXPORT_ALL=true`: `moovent-stack` exports **all** keys in the configured
+  Infisical environment/path (recursive). `MOOVENT_INFISICAL_EXPORT_KEYS` becomes optional.
 
 ## GitHub configuration
 
