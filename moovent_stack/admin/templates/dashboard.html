@@ -670,6 +670,9 @@
                 <input id="log-autoscroll" type="checkbox" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5" checked />
                 Auto-scroll
               </label>
+              <button id="log-copy" class="py-1.5 px-2.5 text-xs font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 flex items-center gap-1" title="Copy logs to clipboard">
+                <i data-lucide="copy" class="w-3 h-3"></i> Copy
+              </button>
               <button id="log-clear" class="py-1.5 px-2.5 text-xs font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 flex items-center gap-1">
                 <i data-lucide="trash-2" class="w-3 h-3"></i> Clear
               </button>
@@ -845,6 +848,7 @@
       const elLogSearch = document.getElementById("log-search");
       const elLogPause = document.getElementById("log-pause");
       const elLogAutoScroll = document.getElementById("log-autoscroll");
+      const elLogCopy = document.getElementById("log-copy");
       const elLogClear = document.getElementById("log-clear");
       const elUpdateBanner = document.getElementById("update-banner");
       const elUpdateTitle = document.getElementById("update-title");
@@ -2280,6 +2284,66 @@
         state.logs = [];
         renderLogs();
       });
+
+      async function _copyTextToClipboard(text) {
+        // Purpose: copy in modern browsers + safe fallback for older WebKit.
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text);
+            return true;
+          }
+        } catch {}
+
+        try {
+          const ta = document.createElement("textarea");
+          ta.value = text;
+          ta.setAttribute("readonly", "true");
+          ta.style.position = "fixed";
+          ta.style.top = "-1000px";
+          ta.style.left = "-1000px";
+          document.body.appendChild(ta);
+          ta.select();
+          ta.setSelectionRange(0, ta.value.length);
+          const ok = document.execCommand("copy");
+          ta.remove();
+          return !!ok;
+        } catch {
+          return false;
+        }
+      }
+
+      if (elLogCopy) {
+        elLogCopy.addEventListener("click", async () => {
+          // Copy the currently displayed logs (respecting filter).
+          const filter = state.filter.trim().toLowerCase();
+          const lines = state.logs
+            .filter((entry) => {
+              if (!filter) return true;
+              return String(entry.line || "").toLowerCase().includes(filter);
+            })
+            .map((entry) => String(entry.line || "").replace(/\r\n/g, "\n"));
+
+          if (!lines.length) {
+            showToast("warning", "Nothing to copy", "No logs match the current filter.");
+            return;
+          }
+
+          const header = [
+            `Service: ${friendlyServiceName(state.selectedService || "") || "unknown"}`,
+            `Copied at: ${new Date().toISOString()}`,
+            filter ? `Filter: ${state.filter}` : "Filter: (none)",
+            "----",
+          ].join("\n");
+
+          const payload = header + "\n" + lines.join("\n");
+          const ok = await _copyTextToClipboard(payload);
+          if (ok) {
+            showToast("success", "Logs copied", `${lines.length} line(s) copied to clipboard.`);
+          } else {
+            showToast("error", "Copy failed", "Could not access clipboard. Try again or use your browser's copy.");
+          }
+        });
+      }
 
       elGithubStatus.addEventListener("click", async (evt) => {
         const btn = evt.target.closest("button[data-github-action]");

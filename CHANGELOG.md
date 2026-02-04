@@ -4,6 +4,7 @@
 - **Fix (Infisical)**: Read `INFISICAL_EXPORT_ALL` from workspace `.env` so local runner injection can export all keys.
 - **UX**: Toast notifications show a countdown progress bar until auto-hide.
 - **UX**: Logs auto-scroll pauses when you scroll up and resumes when you return to the bottom.
+- **UX**: Add “Copy logs” button (copies filtered log output to clipboard).
 
 ## 0.5.4
 - **Infisical**: Add `INFISICAL_EXPORT_ALL=true` to export all keys from Infisical into the runtime env (recursive).
