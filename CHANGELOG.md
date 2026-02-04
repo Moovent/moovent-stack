@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.5.5 (unreleased)
+## 0.5.5
 - **Fix (Infisical)**: Read `INFISICAL_EXPORT_ALL` from workspace `.env` so local runner injection can export all keys.
 - **UX**: Toast notifications show a countdown progress bar until auto-hide.
 - **UX**: Logs auto-scroll pauses when you scroll up and resumes when you return to the bottom.
