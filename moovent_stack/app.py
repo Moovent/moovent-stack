@@ -157,7 +157,14 @@ def main() -> int:
         workspace_env = read_dotenv(mqtt_env_path)
         # Only load MOOVENT_INFISICAL_EXPORT_KEYS (and similar config vars) to os.environ.
         # Don't load secrets from .env — let Infisical provide those.
-        config_keys = ["MOOVENT_INFISICAL_EXPORT_KEYS", "INFISICAL_REQUIRED_KEYS"]
+        config_keys = [
+            "MOOVENT_INFISICAL_EXPORT_KEYS",
+            "INFISICAL_REQUIRED_KEYS",
+            # Enable "export all keys from Infisical" for local runner injection.
+            # We intentionally preload this from the repo `.env` because `_build_runner_env()`
+            # relies on the parent process environment.
+            "INFISICAL_EXPORT_ALL",
+        ]
         for k in config_keys:
             if k in workspace_env and not os.environ.get(k):
                 os.environ[k] = workspace_env[k]

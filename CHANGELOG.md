@@ -1,6 +1,9 @@
 # Changelog
 
-## 0.5.4 (unreleased)
+## 0.5.5 (unreleased)
+- **Fix (Infisical)**: Read `INFISICAL_EXPORT_ALL` from workspace `.env` so local runner injection can export all keys.
+
+## 0.5.4
 - **Infisical**: Add `INFISICAL_EXPORT_ALL=true` to export all keys from Infisical into the runtime env (recursive).
   - Applies to local runner injection and per-repo env switching (dev/prod).
 
