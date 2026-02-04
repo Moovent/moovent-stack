@@ -36,7 +36,7 @@
       .details-content.open { max-height: 500px; }
       /* Toast notifications */
       .toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; max-width: 380px; }
-      .toast { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1); animation: slideIn 0.3s ease; backdrop-filter: blur(8px); }
+      .toast { position: relative; overflow: hidden; display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1); animation: slideIn 0.3s ease; backdrop-filter: blur(8px); }
       .toast.hiding { animation: slideOut 0.3s ease forwards; }
       .toast-success { background: linear-gradient(135deg, rgba(16,185,129,0.95), rgba(5,150,105,0.95)); color: white; }
       .toast-error { background: linear-gradient(135deg, rgba(239,68,68,0.95), rgba(220,38,38,0.95)); color: white; }
@@ -48,7 +48,7 @@
       .toast-message { font-size: 13px; opacity: 0.9; }
       .toast-close { flex-shrink: 0; width: 18px; height: 18px; cursor: pointer; opacity: 0.7; transition: opacity 0.2s; }
       .toast-close:hover { opacity: 1; }
-      .toast-progress { position: absolute; bottom: 0; left: 0; height: 3px; background: rgba(255,255,255,0.4); border-radius: 0 0 12px 12px; }
+      .toast-progress { position: absolute; bottom: 0; left: 0; height: 3px; width: 100%; background: rgba(255,255,255,0.45); border-radius: 0 0 12px 12px; }
       @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
       @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
       /* Log formatting */
@@ -698,8 +698,10 @@
       // =====================================================
       const toastContainer = document.getElementById("toast-container");
       let toastCounter = 0;
+      const TOAST_AUTODISMISS_MS = 60 * 1000;
+      const toastTimeouts = {};
 
-      function showToast(type, title, message) {
+      function showToast(type, title, message, opts = {}) {
         const id = ++toastCounter;
         const icons = {
           success: '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
@@ -707,6 +709,8 @@
           warning: '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
           info: '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'
         };
+
+        const durationMs = Math.max(1000, Number(opts.durationMs || TOAST_AUTODISMISS_MS) || TOAST_AUTODISMISS_MS);
 
         const toast = document.createElement("div");
         toast.className = "toast toast-" + type;
@@ -719,13 +723,36 @@
           '</div>' +
           '<svg class="toast-close" onclick="dismissToast(' + id + ')" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
 
+        // Countdown progress bar (shows time remaining until auto-hide).
+        const progress = document.createElement("div");
+        progress.className = "toast-progress";
+        progress.style.width = "100%";
+        toast.appendChild(progress);
+
         toastContainer.appendChild(toast);
-        // Auto-dismiss toasts after 60 seconds (UX: avoid stale notifications).
-        setTimeout(() => dismissToast(id), 60 * 1000);
+        // Animate progress bar to zero over duration.
+        requestAnimationFrame(() => {
+          try {
+            progress.style.transition = `width ${durationMs}ms linear`;
+            progress.style.width = "0%";
+          } catch {}
+        });
+
+        // Auto-dismiss toasts after duration (UX: avoid stale notifications).
+        try {
+          toastTimeouts[id] = setTimeout(() => dismissToast(id), durationMs);
+        } catch {}
         return id;
       }
 
       function dismissToast(id) {
+        // Cancel any pending auto-dismiss timer.
+        try {
+          if (toastTimeouts[id]) {
+            clearTimeout(toastTimeouts[id]);
+            delete toastTimeouts[id];
+          }
+        } catch {}
         const toast = document.getElementById("toast-" + id);
         if (toast) {
           toast.classList.add("hiding");
@@ -761,6 +788,10 @@
         logsLoadSeq: 0,
         paused: false,
         autoScroll: true,
+        // When true, user scrolled away from bottom; don't snap back until they return.
+        autoScrollPausedByScroll: false,
+        // Base text for log status line (we append "(scroll paused)" etc.).
+        logStatusBase: "",
         filter: "",
         eventSource: null,
         gitInfo: {},
@@ -1805,7 +1836,7 @@
         });
         const html = lines.map(formatLogLine).join("");
         elLogOutput.innerHTML = html || "<div class='log-line text-gray-400'>No logs yet.</div>";
-        if (state.autoScroll) {
+        if (state.autoScroll && !state.autoScrollPausedByScroll) {
           elLogOutput.scrollTop = elLogOutput.scrollHeight;
         }
       }
@@ -1854,13 +1885,25 @@
         };
         es.onerror = () => {
           // EventSource auto-reconnects; keep status message simple.
-          elLogStatus.textContent = `Logs: ${friendlyServiceName(name)} (reconnecting)`;
+          setLogStatus(`Logs: ${friendlyServiceName(name)} (reconnecting)`);
         };
+      }
+
+      function updateLogStatus() {
+        let text = state.logStatusBase || "Click a service tab to view its logs";
+        if (state.paused) text += " (paused)";
+        if (state.autoScroll && state.autoScrollPausedByScroll) text += " (scroll paused)";
+        elLogStatus.textContent = text;
+      }
+
+      function setLogStatus(text) {
+        state.logStatusBase = String(text || "");
+        updateLogStatus();
       }
 
       function setSelectedService(name) {
         state.selectedService = name;
-        elLogStatus.textContent = `Logs: ${friendlyServiceName(name)}`;
+        setLogStatus(`Logs: ${friendlyServiceName(name)}`);
         renderLogTabs();
         loadLogs(name);
       }
@@ -2207,11 +2250,31 @@
         if (!state.paused) {
           renderLogs();
         }
+        updateLogStatus();
       });
 
       elLogAutoScroll.addEventListener("change", (evt) => {
         state.autoScroll = !!evt.target.checked;
+        // If user re-enables auto-scroll, immediately follow and clear scroll-pause.
+        if (state.autoScroll) {
+          state.autoScrollPausedByScroll = false;
+          renderLogs();
+        }
+        updateLogStatus();
       });
+
+      // Auto-scroll pause when user scrolls up.
+      // Behavior:
+      // - When auto-scroll toggle is ON and the user scrolls away from bottom, pause snapping.
+      // - When they return to bottom, resume automatically.
+      elLogOutput.addEventListener("scroll", () => {
+        if (!state.autoScroll) return;
+        const thresholdPx = 24;
+        const distanceFromBottom = elLogOutput.scrollHeight - elLogOutput.scrollTop - elLogOutput.clientHeight;
+        const nearBottom = distanceFromBottom <= thresholdPx;
+        state.autoScrollPausedByScroll = !nearBottom;
+        updateLogStatus();
+      }, { passive: true });
 
       elLogClear.addEventListener("click", () => {
         state.logs = [];
