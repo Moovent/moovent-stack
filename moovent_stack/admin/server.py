@@ -326,6 +326,32 @@ def build_admin_server(
             parsed = urlparse(self.path)
             path = parsed.path.rstrip("/") or "/"
 
+            # Free a port by terminating listener PID(s) (local dev helper)
+            if path == "/api/ports/free":
+                payload = self._read_json_body()
+                try:
+                    port = int(payload.get("port") or 0)
+                except Exception:
+                    port = 0
+                service = str(payload.get("service") or "").strip()
+                if not (1 <= port <= 65535):
+                    self._send_json({"ok": False, "error": "invalid_port"}, status=400)
+                    return
+                if service:
+                    spec = manager.services.get(service)
+                    if not spec:
+                        self._send_json({"ok": False, "error": "unknown_service"}, status=404)
+                        return
+                    if int(getattr(spec, "port", 0) or 0) != int(port):
+                        self._send_json({"ok": False, "error": "port_mismatch"}, status=400)
+                        return
+
+                from .services import free_listening_port
+
+                result = free_listening_port(port)
+                self._send_json({"ok": True, "result": result})
+                return
+
             # Trigger update
             if path == "/api/update/run":
                 result = update_state.run_update(reason="manual")

@@ -635,10 +635,10 @@
               <button id="action-start-all" class="py-2 px-3 text-xs font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 flex items-center gap-1.5">
                 <i data-lucide="play" class="w-3.5 h-3.5"></i> Start All
               </button>
-              <button id="action-restart-all" class="py-2 px-3 text-xs font-medium rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 flex items-center gap-1.5">
+              <button id="action-restart-all" class="hidden py-2 px-3 text-xs font-medium rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 flex items-center gap-1.5">
                 <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Restart All
               </button>
-              <button id="action-stop-all" class="py-2 px-3 text-xs font-medium rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 flex items-center gap-1.5">
+              <button id="action-stop-all" class="hidden py-2 px-3 text-xs font-medium rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 flex items-center gap-1.5">
                 <i data-lucide="square" class="w-3.5 h-3.5"></i> Stop All
               </button>
             </div>
@@ -1171,6 +1171,10 @@
         const icon = typeIcons[alert.type] || "alert-triangle";
         const rawMessage = (typeof alert.message === "string") ? alert.message : String(alert.message || "");
         const msg = rawMessage.length > 80 ? rawMessage.slice(0, 80) + "..." : rawMessage;
+        const port = (typeof alert.port === "number") ? alert.port : null;
+        const pids = Array.isArray(alert.listener_pids) ? alert.listener_pids : [];
+        const showFreePort = (alert.type === "port_in_use" && port && pids.length);
+        const pidsText = pids.slice(0, 5).map((p) => String(p)).join(", ");
 
         return '<div class="mt-3 p-3 rounded-lg bg-red-50 border border-red-200">' +
           '<div class="flex items-start gap-2">' +
@@ -1178,6 +1182,12 @@
             '<div class="flex-1 min-w-0">' +
               '<p class="text-xs font-medium text-red-700">' + label + '</p>' +
               '<p class="mt-1 text-[11px] text-red-600 break-all">' + msg + '</p>' +
+              (showFreePort
+                ? ('<div class="mt-2 flex items-center justify-between gap-2">' +
+                    '<p class="text-[10px] text-red-600">Listening PID(s): <span class="font-mono">' + pidsText + '</span></p>' +
+                    '<button data-port-action="free" data-port="' + String(port) + '" class="py-1 px-2 text-[10px] font-medium rounded-md bg-red-600 text-white hover:bg-red-700">Free port</button>' +
+                  '</div>')
+                : "") +
               '<p class="mt-2 text-[10px] text-red-500 flex items-center gap-1"><i data-lucide="loader" class="w-3 h-3 animate-spin"></i> Checking again...</p>' +
             '</div>' +
           '</div>' +
@@ -2138,6 +2148,39 @@
       }
 
       elServices.addEventListener("click", (evt) => {
+        // Port helper (free a listening port)
+        const portBtn = evt.target.closest("button[data-port-action]");
+        if (portBtn) {
+          const action = portBtn.getAttribute("data-port-action");
+          const portStr = portBtn.getAttribute("data-port") || "";
+          const port = parseInt(portStr, 10);
+          if (!action || !port || Number.isNaN(port)) return;
+          if (action === "free") {
+            const ok = confirm(`Free port ${port}? This will terminate the process currently listening on that port.`);
+            if (!ok) return;
+            // Best-effort: infer selected service for nicer UX, but port-only works too.
+            const payload = { port, service: (state.selectedService || "") };
+            fetch("/api/ports/free", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            }).then((res) => res.json()).then((data) => {
+              const result = (data && data.result) ? data.result : null;
+              const freed = result && result.freed;
+              if (freed) {
+                showToast("success", "Port freed", `Port ${port} is now available.`);
+              } else {
+                const still = (result && Array.isArray(result.still_listening)) ? result.still_listening : [];
+                showToast("warning", "Port still in use", `Port ${port} still has listener PID(s): ${still.join(", ") || "unknown"}`);
+              }
+              refreshServices();
+            }).catch(() => {
+              showToast("error", "Failed to free port", `Could not free port ${port}.`);
+            });
+          }
+          return;
+        }
+
         // Environment toggle button
         const envBtn = evt.target.closest("button[data-env-toggle]");
         if (envBtn) {
@@ -2499,6 +2542,7 @@
       // Toggle visibility of startup/shutdown buttons based on service state
       function updatePowerButtons() {
         const anyRunning = state.services.some(s => s.running || s.desired);
+        // Header controls: show either "Turn on" OR "Shutdown"
         if (elStartupBtn && elShutdownBtn) {
           if (anyRunning) {
             elStartupBtn.classList.add("hidden");
@@ -2506,6 +2550,20 @@
           } else {
             elStartupBtn.classList.remove("hidden");
             elShutdownBtn.classList.add("hidden");
+          }
+        }
+
+        // Services panel controls: show either "Start all" OR ("Restart all" + "Stop all")
+        // UX: Avoid showing 3 power actions at once.
+        if (elStartAll && elRestartAll && elStopAll) {
+          if (anyRunning) {
+            elStartAll.classList.add("hidden");
+            elRestartAll.classList.remove("hidden");
+            elStopAll.classList.remove("hidden");
+          } else {
+            elStartAll.classList.remove("hidden");
+            elRestartAll.classList.add("hidden");
+            elStopAll.classList.add("hidden");
           }
         }
       }

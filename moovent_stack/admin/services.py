@@ -138,6 +138,100 @@ def pid_alive(pid: int) -> bool:
         return False
 
 
+def pid_command(pid: int, *, ttl_s: float = 1.0) -> str:
+    """
+    Best-effort: get a PID's command line (macOS/Linux only).
+
+    Notes:
+      - Used for UI diagnostics only.
+      - Returns "" if unavailable.
+    """
+    if sys.platform == "win32":
+        return ""
+    try:
+        result = subprocess.run(
+            ["ps", "-p", str(pid), "-o", "command="],
+            capture_output=True,
+            text=True,
+            timeout=ttl_s,
+        )
+        if result.returncode != 0:
+            return ""
+        return (result.stdout or "").strip()
+    except Exception:
+        return ""
+
+
+def terminate_pid(pid: int, *, timeout_s: float = 2.0) -> tuple[bool, str]:
+    """
+    Terminate a PID (SIGTERM), then SIGKILL if still alive.
+
+    Safety:
+      - Only works for processes owned by the current user.
+      - Returns (ok, detail) for UI reporting.
+    """
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return True, "already_exited"
+    except PermissionError:
+        return False, "permission_denied"
+    except Exception as exc:
+        return False, f"sigterm_failed:{type(exc).__name__}"
+
+    deadline = time.time() + max(0.1, float(timeout_s))
+    while time.time() < deadline:
+        if not pid_alive(pid):
+            return True, "terminated"
+        time.sleep(0.05)
+
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        return True, "already_exited"
+    except PermissionError:
+        return False, "permission_denied"
+    except Exception as exc:
+        return False, f"sigkill_failed:{type(exc).__name__}"
+
+    # Final short wait.
+    deadline = time.time() + 1.0
+    while time.time() < deadline:
+        if not pid_alive(pid):
+            return True, "killed"
+        time.sleep(0.05)
+    return False, "still_alive"
+
+
+def free_listening_port(port: int, *, limit: int = 5) -> dict[str, object]:
+    """
+    Attempt to free a listening TCP port by terminating listener PID(s).
+
+    Why:
+      The stack uses stable ports (e.g. 8000). If something else is listening
+      (like `python -m http.server 8000`), services will flap with EADDRINUSE.
+
+    Returns:
+      {"port": int, "listeners": [...], "results": [...], "freed": bool}
+    """
+    listeners = tcp_listen_pids(int(port))[: max(0, int(limit))]
+    results: list[dict[str, object]] = []
+    for pid in listeners:
+        cmd = pid_command(pid)
+        ok, detail = terminate_pid(pid)
+        results.append({"pid": pid, "ok": ok, "detail": detail, "command": cmd})
+
+    # Re-check after termination attempts.
+    still = tcp_listen_pids(int(port))[: max(0, int(limit))]
+    return {
+        "port": int(port),
+        "listeners": listeners,
+        "still_listening": still,
+        "results": results,
+        "freed": (len(still) == 0),
+    }
+
+
 def pick_free_port(start: int, *, limit: int = 50) -> int:
     """Find a free port starting from `start`."""
     for offset in range(limit):
