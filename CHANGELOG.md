@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.12
+- **Watchdog (auto-restart)**: Add a service watchdog that polls repo-specific config/dependency files and restarts affected services automatically after debounced changes.
+- **Watchdog (auto-reinstall)**: On lockfile/requirements changes, run dependency bootstrap (`ensure_node_deps` / `ensure_python_deps`) before restart.
+- **Coverage**: Add unit tests for watchdog change detection, debounce behavior, and action mapping.
+
 ## 0.5.11
 - **Startup self-heal**: On service start, automatically terminate stale listeners from previous stack runs when the listener command belongs to the same service repo path.
 - **Port safety**: If a port is still occupied by an unrelated process, startup is blocked with a clear PID list instead of flapping.

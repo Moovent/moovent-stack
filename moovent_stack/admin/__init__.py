@@ -49,22 +49,7 @@ from .github import github_config, GitHubState
 from .updates import UpdateState
 from .server import build_admin_server
 from .deps import read_dotenv, ensure_node_deps, ensure_python_deps
-
-
-def _latest_py_mtime(root: Path) -> float:
-    """Get latest modification time of .py files in a directory."""
-    latest = 0.0
-    try:
-        if not root.exists():
-            return latest
-        for p in root.rglob("*.py"):
-            try:
-                latest = max(latest, p.stat().st_mtime)
-            except Exception:
-                continue
-    except Exception:
-        return latest
-    return latest
+from .watchdog import ServiceWatchdog, WatchRule
 
 
 def _restart_repo_services(manager: StackManager, repo: Path) -> list[str]:
@@ -304,8 +289,79 @@ def main(workspace: Path | None = None) -> int:
     # Wire update restarts now that services are registered.
     update_state.set_on_repo_updated(lambda repo: _restart_repo_services(manager, repo))
 
-    mqtt_watch_root = mqtt_repo / "src" if has_mqtt else None
-    mqtt_last_mtime = 0.0
+    watch_rules: list[WatchRule] = []
+    if has_mqtt:
+        watch_rules.extend(
+            [
+                WatchRule(
+                    service="mqtt-backend",
+                    root=mqtt_repo,
+                    globs=["src/**/*.py", ".env"],
+                    action="restart",
+                    debounce_s=0.35,
+                    reason="mqtt-backend code/env changed",
+                ),
+                WatchRule(
+                    service="mqtt-backend",
+                    root=mqtt_repo,
+                    globs=["requirements.txt"],
+                    action="python_reinstall_restart",
+                    debounce_s=0.35,
+                    reason="mqtt-backend python deps changed",
+                ),
+                WatchRule(
+                    service="mqtt-frontend",
+                    root=mqtt_repo / "mqtt-admin-dashboard",
+                    globs=[
+                        "package-lock.json",
+                        "package.json",
+                        "vite.config.*",
+                        "postcss.config.*",
+                        "tailwind.config.*",
+                        ".env",
+                        ".env.local",
+                    ],
+                    action="node_reinstall_restart",
+                    debounce_s=0.35,
+                    reason="mqtt-frontend deps/config changed",
+                ),
+            ]
+        )
+    if has_dashboard:
+        watch_rules.extend(
+            [
+                WatchRule(
+                    service="dashboard-server",
+                    root=dashboard_repo / "server",
+                    globs=[
+                        "package-lock.json",
+                        "package.json",
+                        ".env",
+                        ".env.local",
+                    ],
+                    action="node_reinstall_restart",
+                    debounce_s=0.35,
+                    reason="dashboard-server deps/config changed",
+                ),
+                WatchRule(
+                    service="dashboard-client",
+                    root=dashboard_repo / "client",
+                    globs=[
+                        "package-lock.json",
+                        "package.json",
+                        "vite.config.*",
+                        "postcss.config.*",
+                        "tailwind.config.*",
+                        ".env",
+                        ".env.local",
+                    ],
+                    action="node_reinstall_restart",
+                    debounce_s=0.35,
+                    reason="dashboard-client deps/config changed",
+                ),
+            ]
+        )
+    watchdog = ServiceWatchdog(watch_rules) if watch_rules else None
 
     # Start admin UI server.
     admin_server = build_admin_server(
@@ -339,17 +395,30 @@ def main(workspace: Path | None = None) -> int:
         if should_open_browser():
             open_browser(admin_url)
 
-        # Wait loop: restarts mqtt-backend on .py file changes
-        if mqtt_watch_root:
-            mqtt_last_mtime = _latest_py_mtime(mqtt_watch_root)
+        if watchdog:
+            watchdog.prime()
 
         while True:
-            # Auto-restart mqtt-backend on python code changes (simple polling watcher)
-            if mqtt_watch_root and has_mqtt:
-                current_mtime = _latest_py_mtime(mqtt_watch_root)
-                if current_mtime and current_mtime > mqtt_last_mtime + 1e-6:
-                    mqtt_last_mtime = current_mtime
-                    manager.restart("mqtt-backend")
+            # Watchdog: restart services when config/deps/code changes require a restart.
+            if watchdog:
+                for event in watchdog.poll():
+                    try:
+                        spec = manager.services.get(event.service)
+                        if not spec:
+                            continue
+                        if event.action == "node_reinstall_restart":
+                            ensure_node_deps(spec.cwd)
+                        elif event.action == "python_reinstall_restart":
+                            ensure_python_deps(mqtt_repo, sys.executable)
+                        manager.log_store.append(
+                            event.service, f"[runner] watchdog: {event.reason}; restarting"
+                        )
+                        manager.restart(event.service)
+                    except Exception as exc:
+                        manager.log_store.append(
+                            event.service,
+                            f"[runner] watchdog failed: {type(exc).__name__}: {exc}",
+                        )
 
             # Record unexpected process exits without killing the stack
             for name, proc in list(manager.procs.items()):

@@ -115,6 +115,21 @@ To handle branch switches safely, dependency installs are fingerprinted:
 - If `package-lock.json`/`package.json` changed, Node deps are reinstalled even when `node_modules/` already exists.
 - If `requirements.txt` changed, Python deps are reinstalled even when `.venv/` already exists.
 
+## Service watchdog behavior
+
+The admin runner has a polling watchdog for restart-required changes:
+
+- `mqtt-backend`: watches `src/**/*.py`, `.env`, and `requirements.txt`
+- `mqtt-frontend`: watches Node lock/config/env files in `mqtt-admin-dashboard/`
+- `dashboard-server`: watches Node lock/env files in `dashboard/server/`
+- `dashboard-client`: watches Node lock/config/env files in `dashboard/client/`
+
+Behavior:
+
+- Changes are debounced to avoid restart storms while files are being saved.
+- Dependency-related changes trigger dependency bootstrap before restart.
+- Frontend source edits still use Vite HMR; watchdog targets restart-required files.
+
 ## Formatting
 
 This repo uses `ruff` + `black` (when available in your environment).

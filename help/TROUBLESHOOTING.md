@@ -88,6 +88,8 @@ Port behavior on recent versions:
 - If the port is occupied by an unrelated process, startup is blocked and the log shows
   blocking PID(s). In that case, stop that process manually or use the dashboard "Free port"
   action where available.
+- A watchdog also polls restart-required files (lockfiles/config/env). When these change,
+  the affected service is restarted automatically (and deps are reinstalled when needed).
 
 ## "Update available" banner won't update
 
