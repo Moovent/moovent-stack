@@ -81,6 +81,14 @@ Fix:
 2. Look for error messages
 3. Check if dependencies installed: `ls <workspace>/mqtt_dashboard_watch/.venv` or `node_modules`
 
+Port behavior on recent versions:
+
+- On service start, `moovent-stack` auto-cleans stale listeners from previous runs when
+  the stale process belongs to the same repo path.
+- If the port is occupied by an unrelated process, startup is blocked and the log shows
+  blocking PID(s). In that case, stop that process manually or use the dashboard "Free port"
+  action where available.
+
 ## "Update available" banner won't update
 
 Common causes:
@@ -166,12 +174,13 @@ Override host if needed:
 export INFISICAL_HOST="https://eu.infisical.com"
 ```
 
-## Infisical unreachable (but you were previously allowed)
+## Infisical unreachable
 
-If Infisical can't be reached and you have a valid cached allow entry, `moovent-stack` may continue using the cache.
+Current behavior is fail-closed after cache expiry:
 
-To force a fresh check:
-- delete `~/.moovent_stack_access.json` (or your custom `MOOVENT_ACCESS_CACHE_PATH`)
+- If Infisical cannot be reached and the cache entry is expired, access is denied.
+- If you need to revalidate from scratch, delete `~/.moovent_stack_access.json`
+  (or your custom `MOOVENT_ACCESS_CACHE_PATH`) and retry.
 
 ## How to completely reset moovent-stack
 

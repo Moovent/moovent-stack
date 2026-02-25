@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.11
+- **Startup self-heal**: On service start, automatically terminate stale listeners from previous stack runs when the listener command belongs to the same service repo path.
+- **Port safety**: If a port is still occupied by an unrelated process, startup is blocked with a clear PID list instead of flapping.
+- **Tests**: Add unit coverage for stale-listener auto-clean and unrelated-listener protection.
+
 ## 0.5.10
 - **Deps auto-heal**: Reinstall Node dependencies when `package-lock.json`/`package.json` fingerprint changes, even if `node_modules` already exists.
 - **Deps auto-heal**: Reinstall Python dependencies for `mqtt_dashboard_watch` when `requirements.txt` changes, even if `.venv` already exists.

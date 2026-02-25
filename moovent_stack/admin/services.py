@@ -203,6 +203,20 @@ def terminate_pid(pid: int, *, timeout_s: float = 2.0) -> tuple[bool, str]:
     return False, "still_alive"
 
 
+def _is_stale_listener_for_service(spec: ServiceSpec, cmdline: str) -> bool:
+    """
+    Decide whether a port listener looks like a stale process for this service.
+
+    Safety:
+      We only auto-terminate listeners whose command line includes the service
+      working directory. This avoids killing unrelated processes on the same port.
+    """
+    cmd = (cmdline or "").strip()
+    if not cmd:
+        return False
+    return str(spec.cwd) in cmd
+
+
 def free_listening_port(port: int, *, limit: int = 5) -> dict[str, object]:
     """
     Attempt to free a listening TCP port by terminating listener PID(s).
@@ -302,6 +316,34 @@ class StackManager:
             if proc and proc.poll() is None:
                 return True
             self.desired_running[name] = True
+
+            # Startup self-heal: clear stale listeners from previous stack runs.
+            # This commonly happens after force-quits/reloads where old Vite
+            # processes keep ports (3000/4000) alive.
+            if spec.port:
+                listeners = tcp_listen_pids(int(spec.port))[:5]
+                for pid in listeners:
+                    cmd = pid_command(pid)
+                    if not _is_stale_listener_for_service(spec, cmd):
+                        continue
+                    ok, detail = terminate_pid(pid)
+                    self.log_store.append(
+                        name,
+                        f"[runner] auto-free port {int(spec.port)} pid={pid} "
+                        f"result={'ok' if ok else 'failed'} detail={detail}",
+                    )
+
+                # Final guard: if the port is still occupied, do not start and
+                # show who is blocking it.
+                still = tcp_listen_pids(int(spec.port))[:5]
+                if still:
+                    self.log_store.append(
+                        name,
+                        f"[runner] start blocked: port {int(spec.port)} in use by PID(s): "
+                        f"{', '.join(str(p) for p in still)}",
+                    )
+                    return False
+
             new_proc = _popen(cmd=spec.cmd, cwd=spec.cwd, env=spec.env)
             self.procs[name] = new_proc
             self.start_times[name] = time.time()
