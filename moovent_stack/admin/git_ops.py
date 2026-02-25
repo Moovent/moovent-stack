@@ -337,16 +337,47 @@ def git_pull_latest(repo: Path) -> tuple[bool, str, str]:
     return True, "updated", out
 
 
-def git_checkout_branch(repo: Path, branch: str) -> tuple[bool, str]:
+def git_discard_changes(repo: Path) -> tuple[bool, str]:
+    """
+    Discard all uncommitted changes (git reset --hard HEAD).
+    Returns (success, message).
+    """
+    ok, out = git_cmd(repo, ["reset", "--hard", "HEAD"])
+    if not ok:
+        return False, out or "reset failed"
+    return True, "changes discarded"
+
+
+def git_commit_all(repo: Path, message: str) -> tuple[bool, str]:
+    """
+    Stage and commit all changes (git add -A && git commit -m "...").
+    Returns (success, message).
+    """
+    msg = (message or "Update").strip() or "Update"
+    ok, out = git_cmd(repo, ["add", "-A"])
+    if not ok:
+        return False, out or "add failed"
+    ok, out = git_cmd(repo, ["commit", "-m", msg])
+    if not ok:
+        return False, out or "commit failed"
+    return True, "changes committed"
+
+
+def git_checkout_branch(repo: Path, branch: str, discard: bool = False) -> tuple[bool, str]:
     """
     Checkout a branch in a repo.
-    
+    If discard=True and worktree is dirty, run git reset --hard first, then checkout.
     Returns (success, message).
     """
     # Check dirty state first
     ok, status = git_cmd(repo, ["status", "--porcelain"])
     if ok and status.strip():
-        return False, "dirty_worktree"
+        if discard:
+            ok_discard, _ = git_discard_changes(repo)
+            if not ok_discard:
+                return False, "discard_failed"
+        else:
+            return False, "dirty_worktree"
     
     # Try local branch first
     ok, out = git_cmd(repo, ["checkout", branch])

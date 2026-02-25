@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.7
+- **UX**: Branch switch with unsaved changes — when switching branches with uncommitted changes, show a modal instead of a toast.
+  - Options: **Discard & switch** (git reset --hard, then checkout), **Commit & switch** (commit with message, then checkout), or **Cancel**.
+  - New APIs: `POST /api/git/{service}/discard`, `POST /api/git/{service}/commit`.
+  - Checkout API accepts optional `discard: true` in body for one-shot discard-then-checkout.
+
 ## 0.5.6
 - **UX**: Add a “Free port” action for `EADDRINUSE` alerts (shows listener PID(s) and can terminate the listener to unblock startup).
 - **UX**: Simplify stack power actions in the Services panel: show “Start all” only when everything is stopped; otherwise show “Restart all” + “Stop all”.

@@ -38,7 +38,7 @@ from .github import (
     git_connect_repo,
     GitHubState,
 )
-from .git_ops import GitCache, git_checkout_branch, git_pull_latest, git_push_branch
+from .git_ops import GitCache, git_checkout_branch, git_commit_all, git_discard_changes, git_pull_latest, git_push_branch
 from .updates import UpdateState
 
 if TYPE_CHECKING:
@@ -449,10 +449,35 @@ def build_admin_server(
                     })
                     return
                 
+                if action == "discard":
+                    ok, message = git_discard_changes(spec.repo)
+                    if not ok:
+                        self._send_json({"ok": False, "error": message})
+                        return
+                    git_cache.invalidate(spec.repo)
+                    for svc_name in manager.services_for_repo(spec.repo):
+                        manager.log_store.append(svc_name, "[runner] git reset --hard")
+                    self._send_json({"ok": True, "service": name})
+                    return
+
+                if action == "commit":
+                    payload = self._read_json_body()
+                    msg = str(payload.get("message") or "").strip() or "Update"
+                    ok, message = git_commit_all(spec.repo, msg)
+                    if not ok:
+                        self._send_json({"ok": False, "error": message})
+                        return
+                    git_cache.invalidate(spec.repo)
+                    for svc_name in manager.services_for_repo(spec.repo):
+                        manager.log_store.append(svc_name, f"[runner] git commit -m \"{msg[:50]}...\"")
+                    self._send_json({"ok": True, "service": name})
+                    return
+
                 if action == "checkout":
                     payload = self._read_json_body()
                     branch = str(payload.get("branch") or "").strip()
-                    ok, message = git_checkout_branch(spec.repo, branch)
+                    discard = payload.get("discard") is True
+                    ok, message = git_checkout_branch(spec.repo, branch, discard=discard)
                     if not ok:
                         self._send_json({"ok": False, "error": message})
                         return

@@ -48,7 +48,8 @@
       .toast-message { font-size: 13px; opacity: 0.9; }
       .toast-close { flex-shrink: 0; width: 18px; height: 18px; cursor: pointer; opacity: 0.7; transition: opacity 0.2s; }
       .toast-close:hover { opacity: 1; }
-      .toast-progress { position: absolute; bottom: 0; left: 0; height: 3px; width: 100%; background: rgba(255,255,255,0.45); border-radius: 0 0 12px 12px; }
+      /* Visual countdown bar for auto-dismiss toasts (height intentionally chunky). */
+      .toast-progress { position: absolute; bottom: 0; left: 0; height: 6px; width: 100%; background: rgba(255,255,255,0.45); border-radius: 0 0 12px 12px; }
       @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
       @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
       /* Log formatting */
@@ -215,6 +216,60 @@
               >
                 <i data-lucide="arrow-down-circle" class="w-4 h-4"></i>
                 Update to latest
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Branch switch with unsaved changes modal -->
+    <div id="branch-dirty-modal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+      <div class="flex min-h-screen items-center justify-center p-4">
+        <div class="fixed inset-0 bg-gray-900/70 backdrop-blur-sm" id="branch-dirty-modal-backdrop"></div>
+        <div class="relative w-full max-w-md bg-white border border-gray-200 rounded-xl shadow-xl">
+          <div class="p-6">
+            <div class="flex items-start gap-4 mb-4">
+              <div class="flex-shrink-0 w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
+                <i data-lucide="alert-triangle" class="w-6 h-6 text-amber-700"></i>
+              </div>
+              <div class="min-w-0">
+                <h3 class="text-lg font-semibold text-gray-900">Unsaved changes</h3>
+                <p class="text-sm text-gray-500 mt-1">
+                  You have uncommitted changes. Choose how to proceed before switching to
+                  <span id="branch-dirty-target" class="font-medium">--</span>.
+                </p>
+              </div>
+            </div>
+            <div class="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <p class="text-xs text-gray-600">
+                <strong>Discard:</strong> Reset all changes and switch branch.<br>
+                <strong>Commit:</strong> Commit changes, then switch branch.
+              </p>
+            </div>
+            <div id="branch-dirty-commit-row" class="mb-4">
+              <label class="text-sm font-medium text-gray-700 mb-1 block">Commit message (optional)</label>
+              <input id="branch-dirty-commit-msg" type="text" placeholder="e.g. WIP before branch switch" maxlength="200"
+                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+            </div>
+            <div id="branch-dirty-loading" class="hidden mb-4 p-3 rounded-lg bg-gray-50 border border-gray-200">
+              <p class="text-xs text-gray-600 flex items-center gap-2">
+                <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+                <span id="branch-dirty-loading-text">Processing...</span>
+              </p>
+            </div>
+            <div id="branch-dirty-error" class="hidden mb-4 p-3 rounded-lg bg-red-50 border border-red-200">
+              <p class="text-xs font-medium text-red-700" id="branch-dirty-error-text"></p>
+            </div>
+            <div class="flex items-center justify-end gap-3">
+              <button id="branch-dirty-cancel" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                Cancel
+              </button>
+              <button id="branch-dirty-discard" class="px-4 py-2 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100">
+                Discard & switch
+              </button>
+              <button id="branch-dirty-commit-btn" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+                Commit & switch
               </button>
             </div>
           </div>
@@ -701,7 +756,8 @@
       // =====================================================
       const toastContainer = document.getElementById("toast-container");
       let toastCounter = 0;
-      const TOAST_AUTODISMISS_MS = 60 * 1000;
+      // Default toast auto-dismiss. Long enough to read logs/errors without rushing.
+      const TOAST_AUTODISMISS_MS = 30 * 1000;
       const toastTimeouts = {};
 
       function showToast(type, title, message, opts = {}) {
@@ -1628,9 +1684,12 @@
           });
           const data = await res.json();
           if (!data.ok) {
+            if (data.error === "dirty_worktree") {
+              showBranchDirtyModal(name, branch);
+              return;
+            }
             state.gitInfo[name] = { ...(state.gitInfo[name] || {}), error: data.error || "checkout_failed" };
             const errorMessages = {
-              dirty_worktree: "You have unsaved changes. Please commit or discard them first.",
               branch_not_found: "Branch not found",
               checkout_failed: "Failed to switch branches"
             };
@@ -2831,6 +2890,143 @@
       if (elEnvSwitchConfirm) elEnvSwitchConfirm.addEventListener("click", confirmEnvSwitch);
       if (elEnvSwitchDev) elEnvSwitchDev.addEventListener("click", () => selectEnvSwitchOption("dev"));
       if (elEnvSwitchProd) elEnvSwitchProd.addEventListener("click", () => selectEnvSwitchOption("prod"));
+
+      // Branch switch dirty-worktree modal
+      const elBranchDirtyModal = document.getElementById("branch-dirty-modal");
+      const elBranchDirtyBackdrop = document.getElementById("branch-dirty-modal-backdrop");
+      const elBranchDirtyCancel = document.getElementById("branch-dirty-cancel");
+      const elBranchDirtyDiscard = document.getElementById("branch-dirty-discard");
+      const elBranchDirtyCommitBtn = document.getElementById("branch-dirty-commit-btn");
+      const elBranchDirtyCommitMsg = document.getElementById("branch-dirty-commit-msg");
+      const elBranchDirtyTarget = document.getElementById("branch-dirty-target");
+      const elBranchDirtyLoading = document.getElementById("branch-dirty-loading");
+      const elBranchDirtyLoadingText = document.getElementById("branch-dirty-loading-text");
+      const elBranchDirtyError = document.getElementById("branch-dirty-error");
+      const elBranchDirtyErrorText = document.getElementById("branch-dirty-error-text");
+
+      state.branchDirty = null;  // { name, branch }
+
+      function showBranchDirtyModal(name, branch) {
+        state.branchDirty = { name, branch };
+        if (elBranchDirtyTarget) elBranchDirtyTarget.textContent = branch;
+        if (elBranchDirtyCommitMsg) elBranchDirtyCommitMsg.value = `WIP before switch to ${branch}`;
+        if (elBranchDirtyLoading) elBranchDirtyLoading.classList.add("hidden");
+        if (elBranchDirtyError) elBranchDirtyError.classList.add("hidden");
+        if (elBranchDirtyModal) elBranchDirtyModal.classList.remove("hidden");
+        if (window.lucide) lucide.createIcons();
+      }
+
+      function hideBranchDirtyModal() {
+        if (elBranchDirtyModal) elBranchDirtyModal.classList.add("hidden");
+        state.branchDirty = null;
+      }
+
+      function setBranchDirtyLoading(show, text) {
+        if (elBranchDirtyLoading) {
+          if (show) {
+            elBranchDirtyLoading.classList.remove("hidden");
+            if (elBranchDirtyLoadingText) elBranchDirtyLoadingText.textContent = text || "Processing...";
+          } else {
+            elBranchDirtyLoading.classList.add("hidden");
+          }
+        }
+        if (elBranchDirtyDiscard) elBranchDirtyDiscard.disabled = show;
+        if (elBranchDirtyCommitBtn) elBranchDirtyCommitBtn.disabled = show;
+        if (elBranchDirtyCancel) elBranchDirtyCancel.disabled = show;
+      }
+
+      function setBranchDirtyError(msg) {
+        if (elBranchDirtyError) {
+          if (msg) {
+            elBranchDirtyError.classList.remove("hidden");
+            if (elBranchDirtyErrorText) elBranchDirtyErrorText.textContent = msg;
+          } else {
+            elBranchDirtyError.classList.add("hidden");
+          }
+        }
+      }
+
+      async function doBranchDirtyDiscard() {
+        const { name, branch } = state.branchDirty || {};
+        if (!name || !branch) return;
+        setBranchDirtyError("");
+        setBranchDirtyLoading(true, "Discarding changes...");
+        try {
+          const discardRes = await fetch(`/api/git/${encodeURIComponent(name)}/discard`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          });
+          const discardData = await discardRes.json();
+          if (!discardData.ok) {
+            setBranchDirtyError(discardData.error || "Discard failed");
+            return;
+          }
+          setBranchDirtyLoading(true, "Switching branch...");
+          const checkoutRes = await fetch(`/api/git/${encodeURIComponent(name)}/checkout`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ branch }),
+          });
+          const checkoutData = await checkoutRes.json();
+          if (!checkoutData.ok) {
+            setBranchDirtyError(checkoutData.error || "Checkout failed");
+            return;
+          }
+          hideBranchDirtyModal();
+          showToast("success", "Switched to " + branch, "Changes discarded. Services restarted.");
+          await refreshGit(true);
+          await refreshServices();
+        } catch (err) {
+          setBranchDirtyError(err.message || "Network error");
+        } finally {
+          setBranchDirtyLoading(false);
+        }
+      }
+
+      async function doBranchDirtyCommit() {
+        const { name, branch } = state.branchDirty || {};
+        if (!name || !branch) return;
+        const msg = (elBranchDirtyCommitMsg?.value || "").trim() || `WIP before switch to ${branch}`;
+        setBranchDirtyError("");
+        setBranchDirtyLoading(true, "Committing...");
+        try {
+          const commitRes = await fetch(`/api/git/${encodeURIComponent(name)}/commit`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message: msg }),
+          });
+          const commitData = await commitRes.json();
+          if (!commitData.ok) {
+            setBranchDirtyError(commitData.error || "Commit failed");
+            return;
+          }
+          setBranchDirtyLoading(true, "Switching branch...");
+          const checkoutRes = await fetch(`/api/git/${encodeURIComponent(name)}/checkout`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ branch }),
+          });
+          const checkoutData = await checkoutRes.json();
+          if (!checkoutData.ok) {
+            setBranchDirtyError(checkoutData.error || "Checkout failed");
+            return;
+          }
+          hideBranchDirtyModal();
+          showToast("success", "Switched to " + branch, "Changes committed. Services restarted.");
+          await refreshGit(true);
+          await refreshServices();
+        } catch (err) {
+          setBranchDirtyError(err.message || "Network error");
+        } finally {
+          setBranchDirtyLoading(false);
+        }
+      }
+
+      if (elBranchDirtyCancel) elBranchDirtyCancel.addEventListener("click", hideBranchDirtyModal);
+      if (elBranchDirtyBackdrop) elBranchDirtyBackdrop.addEventListener("click", hideBranchDirtyModal);
+      if (elBranchDirtyDiscard) elBranchDirtyDiscard.addEventListener("click", doBranchDirtyDiscard);
+      if (elBranchDirtyCommitBtn) elBranchDirtyCommitBtn.addEventListener("click", doBranchDirtyCommit);
 
       if (elUpdateAction) {
         elUpdateAction.addEventListener("click", () => {
