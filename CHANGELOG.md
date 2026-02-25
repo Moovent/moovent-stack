@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.10
+- **Deps auto-heal**: Reinstall Node dependencies when `package-lock.json`/`package.json` fingerprint changes, even if `node_modules` already exists.
+- **Deps auto-heal**: Reinstall Python dependencies for `mqtt_dashboard_watch` when `requirements.txt` changes, even if `.venv` already exists.
+- **Tests**: Add unit coverage for dependency fingerprint drift detection.
+
 ## 0.5.9
 - **Fix (Git discard)**: `Discard & switch` now removes both tracked and untracked changes before checkout (`git reset --hard` + `git clean -fd`).
 - **Tests**: Add regression test for discard behavior with tracked + untracked changes.

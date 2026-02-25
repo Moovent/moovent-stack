@@ -103,6 +103,18 @@ python3 -m unittest
 
 All tests are in the `tests/` directory.
 
+## Dependency bootstrap behavior
+
+At stack startup, the admin launcher ensures dependencies per installed repo:
+
+- **Node repos**: installs with `npm ci` (or `npm install` without a lockfile).
+- **Python repo (`mqtt_dashboard_watch`)**: installs via `.venv` + `pip install -r requirements.txt`.
+
+To handle branch switches safely, dependency installs are fingerprinted:
+
+- If `package-lock.json`/`package.json` changed, Node deps are reinstalled even when `node_modules/` already exists.
+- If `requirements.txt` changed, Python deps are reinstalled even when `.venv/` already exists.
+
 ## Formatting
 
 This repo uses `ruff` + `black` (when available in your environment).

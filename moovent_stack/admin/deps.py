@@ -7,6 +7,7 @@ Purpose:
 
 from __future__ import annotations
 
+import hashlib
 import os
 import subprocess
 import sys
@@ -44,6 +45,52 @@ def read_dotenv(path: Path) -> dict[str, str]:
 def run_cmd(cmd: list[str], *, cwd: Path, env: Optional[dict[str, str]] = None) -> None:
     """Run a command and fail loudly if it errors."""
     subprocess.check_call(cmd, cwd=str(cwd), env=env or os.environ)
+
+
+def _file_sha256(path: Path) -> str:
+    """Return SHA256 for a file, or empty string when unavailable."""
+    try:
+        data = path.read_bytes()
+    except Exception:
+        return ""
+    return hashlib.sha256(data).hexdigest()
+
+
+def _read_marker(marker: Path) -> str:
+    """Read a dependency fingerprint marker file."""
+    try:
+        return marker.read_text(encoding="utf-8", errors="ignore").strip()
+    except Exception:
+        return ""
+
+
+def _write_marker(marker: Path, value: str) -> None:
+    """Write a dependency fingerprint marker file."""
+    try:
+        marker.write_text(f"{value}\n", encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _node_dep_fingerprint(project_dir: Path) -> str:
+    """
+    Build a node dependency fingerprint.
+
+    Priority:
+    - package-lock.json (most accurate for npm installs)
+    - package.json fallback
+    """
+    lock = project_dir / "package-lock.json"
+    if lock.exists():
+        return f"lock:{_file_sha256(lock)}"
+    pkg = project_dir / "package.json"
+    return f"pkg:{_file_sha256(pkg)}"
+
+
+def _python_dep_fingerprint(mqtt_repo: Path) -> str:
+    """Build a python dependency fingerprint from requirements.txt."""
+    req = mqtt_repo / "requirements.txt"
+    return f"req:{_file_sha256(req)}"
 
 
 def _vite_is_healthy(node_modules: Path) -> bool:
@@ -91,9 +138,15 @@ def ensure_node_deps(project_dir: Path) -> None:
         raise FileNotFoundError(f"Missing package.json in {project_dir}")
     
     node_modules = project_dir / "node_modules"
+    marker = project_dir / ".deps_installed"
+    expected_fp = _node_dep_fingerprint(project_dir)
+    current_fp = _read_marker(marker)
     
     # Check if node_modules exists and Vite is healthy
     needs_install = not node_modules.exists()
+    if not needs_install and expected_fp and current_fp != expected_fp:
+        print(f"[runner] Node deps changed in {project_dir}, reinstalling...", flush=True)
+        needs_install = True
     if not needs_install and (node_modules / "vite").exists():
         if not _vite_is_healthy(node_modules):
             print(f"[runner] Corrupted Vite detected in {project_dir}, reinstalling...", flush=True)
@@ -105,6 +158,10 @@ def ensure_node_deps(project_dir: Path) -> None:
         lock = project_dir / "package-lock.json"
         mode = "ci" if lock.exists() else "install"
         run_cmd(["npm", mode, "--no-audit", "--no-fund"], cwd=project_dir)
+        _write_marker(marker, expected_fp)
+    elif expected_fp and not current_fp:
+        # Backfill marker for existing healthy installs so future drift is detected.
+        _write_marker(marker, expected_fp)
 
 
 def ensure_python_deps(mqtt_repo: Path, system_python: str) -> str:
@@ -121,6 +178,8 @@ def ensure_python_deps(mqtt_repo: Path, system_python: str) -> str:
     venv_dir = mqtt_repo / ".venv"
     venv_python = venv_dir / "bin" / "python"
     marker = venv_dir / ".deps_installed"
+    expected_fp = _python_dep_fingerprint(mqtt_repo)
+    current_fp = _read_marker(marker)
 
     if not venv_python.exists():
         print("[runner] Creating python venv for mqtt_dashboard_watch ...", flush=True)
@@ -128,12 +187,9 @@ def ensure_python_deps(mqtt_repo: Path, system_python: str) -> str:
 
     py = str(venv_python) if venv_python.exists() else system_python
 
-    if not marker.exists():
+    if not marker.exists() or (expected_fp and current_fp != expected_fp):
         print("[runner] Installing python deps for mqtt_dashboard_watch ...", flush=True)
         run_cmd([py, "-m", "pip", "install", "-r", "requirements.txt"], cwd=mqtt_repo)
-        try:
-            marker.write_text("ok\n", encoding="utf-8")
-        except Exception:
-            pass
+        _write_marker(marker, expected_fp)
 
     return py
