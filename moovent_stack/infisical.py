@@ -405,11 +405,35 @@ def _check_environment_access(environment: str) -> bool:
         return False
     
     project_id, _, secret_path = _resolve_infisical_scope()
-    
-    # Try to fetch secrets from this environment
-    secrets = _fetch_infisical_secrets(host, token, project_id, environment, secret_path, recursive=False)
-    # If we get any secrets (or empty but no error), access is granted
-    return secrets is not None
+
+    # Security: fail closed. We probe the environment directly and only grant
+    # access when the Infisical API returns success (2xx). This avoids treating
+    # fetch failures (which resolve to empty dicts in other helper paths) as allow.
+    from urllib.parse import urlencode
+
+    query = urlencode(
+        {
+            "projectId": project_id,
+            "environment": environment,
+            "secretPath": secret_path,
+            "expandSecretReferences": "false",
+            "includeImports": "false",
+            "recursive": "false",
+        }
+    )
+    secrets_url = f"{host}/api/v4/secrets?{query}"
+    secrets_req = Request(secrets_url, method="GET")
+    secrets_req.add_header("Authorization", f"Bearer {token}")
+    secrets_req.add_header("Accept", "application/json")
+    secrets_req.add_header("User-Agent", _DEFAULT_USER_AGENT)
+
+    try:
+        with urlopen(secrets_req, timeout=ACCESS_REQUEST_TIMEOUT_S):
+            return True
+    except HTTPError:
+        return False
+    except Exception:
+        return False
 
 
 def _get_available_environments() -> list[str]:

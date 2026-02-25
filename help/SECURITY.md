@@ -36,8 +36,10 @@ Infisical "secret zero" is the Universal Auth credentials:
 
 ### Local development
 
-- `moovent-stack` injects `INFISICAL_CLIENT_ID` and `INFISICAL_CLIENT_SECRET` into the environment
-  **only at runtime** when launching the Admin Dashboard.
+- `moovent-stack` uses `INFISICAL_CLIENT_ID` and `INFISICAL_CLIENT_SECRET` in the launcher process
+  to fetch runtime keys.
+- Child service environments receive only resolved runtime settings/secrets; `INFISICAL_CLIENT_SECRET`
+  is not propagated to child processes.
 - `moovent-stack` writes only non-sensitive Infisical scope keys to
   `<workspace>/mqtt_dashboard_watch/.env`.
 

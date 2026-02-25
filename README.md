@@ -55,7 +55,8 @@ Notes:
 ### Local development (dev)
 
 - `moovent-stack` **does not write** `INFISICAL_CLIENT_ID` or `INFISICAL_CLIENT_SECRET` into any `.env` file.
-- It injects Infisical credentials into the environment **at runtime** when launching `run_local_stack.py`.
+- It uses Infisical credentials in the launcher process to fetch runtime secrets.
+- It injects runtime secrets/config into child services, but does **not** pass `INFISICAL_CLIENT_SECRET` to child process environments.
 - It writes **only non-sensitive scope config** (host/project/environment/path) to:
   - `<workspace>/mqtt_dashboard_watch/.env`
 
@@ -94,7 +95,8 @@ Workspace requirements:
 - `dashboard/` repo folder (only if selected in setup)
 
 Runtime env behavior:
-- Infisical client credentials are injected at runtime by `moovent-stack`.
+- `moovent-stack` fetches required runtime keys from Infisical and injects those into child services.
+- `INFISICAL_CLIENT_SECRET` is kept in the launcher process and is not propagated to child process env.
 - `mqtt_dashboard_watch/.env` stays non-sensitive (no `INFISICAL_CLIENT_ID/SECRET` on disk).
 
 ## Access control (Infisical Universal Auth)

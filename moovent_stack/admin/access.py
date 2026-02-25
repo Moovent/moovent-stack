@@ -261,10 +261,8 @@ def ensure_access_or_exit(workspace: Path) -> bool:
     access_granted, message, self_clean = fetch_access_status(access_url, access_token, payload)
     
     if access_granted is None:
-        # Network error: allow if we had previous valid access
-        if cache.get("access_granted"):
-            print(f"[runner] Access check failed ({message}), using cached grant.", flush=True)
-            return True
+        # Security: fail closed once TTL expires.
+        # Do not allow stale cached grants during outages after cache expiry.
         print(f"[runner] Access check failed: {message}", flush=True)
         return False
     

@@ -202,9 +202,11 @@ To keep secrets off disk in dev mode:
 - `moovent-stack` injects these into the environment when starting the admin module:
   - `INFISICAL_ENABLED=true`
   - `INFISICAL_CLIENT_ID`
-  - `INFISICAL_CLIENT_SECRET`
   - `INFISICAL_HOST` (if set)
   - `INFISICAL_PROJECT_ID`, `INFISICAL_ENVIRONMENT`, `INFISICAL_SECRET_PATH`
+
+- `INFISICAL_CLIENT_SECRET` is used by the launcher to fetch runtime keys and is not propagated
+  into child process environments.
 
 - Additionally, `moovent-stack` exports required stack secrets (like `BROKER`, `MONGO_URI`, etc.)
   from Infisical **at runtime** into the local stack environment (still not written to disk).

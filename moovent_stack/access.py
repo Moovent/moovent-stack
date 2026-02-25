@@ -69,13 +69,10 @@ def ensure_access_or_exit(host: str, client_id: str, client_secret: str) -> None
 
     allowed, reason = _fetch_infisical_access(host, client_id, client_secret)
     if allowed is None:
-        if cache.get("allowed") is True:
-            print(
-                "[access] Infisical unreachable; using cached allow.", file=sys.stderr
-            )
-            return
+        # Security: fail closed once TTL expires.
+        # A stale "allowed" cache must not grant indefinite offline access.
         raise SystemExit(
-            "[access] Infisical auth failed and no cached allow is available."
+            "[access] Infisical auth failed after cache expiry (network/server error)."
         )
 
     cache.update(

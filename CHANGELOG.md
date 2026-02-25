@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.8
+- **Security (Infisical)**: Fix environment access validation to fail closed on API/auth errors.
+- **Security (Access cache)**: Remove stale-cache allow fallback after TTL expiry; access checks now fail closed on backend/network errors.
+- **Security (Runtime env)**: Stop propagating `INFISICAL_CLIENT_SECRET` to child process environments.
+
 ## 0.5.7
 - **UX**: Branch switch with unsaved changes — when switching branches with uncommitted changes, show a modal instead of a toast.
   - Options: **Discard & switch** (git reset --hard, then checkout), **Commit & switch** (commit with message, then checkout), or **Cancel**.

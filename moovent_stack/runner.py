@@ -11,7 +11,6 @@ from pathlib import Path
 
 from .config import (
     INFISICAL_ENV_CLIENT_ID,
-    INFISICAL_ENV_CLIENT_SECRET,
     INFISICAL_ENV_ENABLED,
     INFISICAL_ENV_ENVIRONMENT,
     INFISICAL_ENV_HOST,
@@ -53,8 +52,9 @@ def _build_runner_env() -> dict[str, str]:
         overrides[INFISICAL_ENV_HOST] = host
     if client_id:
         overrides[INFISICAL_ENV_CLIENT_ID] = client_id
-    if client_secret:
-        overrides[INFISICAL_ENV_CLIENT_SECRET] = client_secret
+    # Security: do not pass secret-zero into child process env.
+    # The launcher uses the secret to fetch runtime keys, then injects only
+    # the resolved stack settings/secrets needed by child services.
 
     # Export required stack secrets (BROKER/MONGO/etc.) from Infisical at runtime.
     # This keeps secrets off disk and avoids startup crashes in mqtt_dashboard_watch.

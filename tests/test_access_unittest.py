@@ -123,7 +123,7 @@ class TestAccessGuard(unittest.TestCase):
             self.assertEqual(env[config.INFISICAL_ENV_ENABLED], "true")
             self.assertEqual(env[config.INFISICAL_ENV_HOST], "https://eu.infisical.com")
             self.assertEqual(env[config.INFISICAL_ENV_CLIENT_ID], "client_id")
-            self.assertEqual(env[config.INFISICAL_ENV_CLIENT_SECRET], "client_secret")
+            self.assertNotIn(config.INFISICAL_ENV_CLIENT_SECRET, env)
             self.assertEqual(env[config.INFISICAL_ENV_PROJECT_ID], "project_id")
             self.assertEqual(env[config.INFISICAL_ENV_ENVIRONMENT], "dev")
             self.assertEqual(env[config.INFISICAL_ENV_SECRET_PATH], "/")
@@ -289,6 +289,104 @@ class TestAccessGuard(unittest.TestCase):
             self.assertEqual(reason, "project_id_mismatch")
         finally:
             os.environ.pop(config.INFISICAL_ENV_PROJECT_ID, None)
+
+    def test_check_environment_access_denies_on_http_error(self):
+        """Environment access probe must fail closed on API errors."""
+
+        class _FakeResp:
+            def read(self) -> bytes:
+                return b'{"secrets":[]}'
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+        real_urlopen = infisical.urlopen
+        real_resolve_settings = infisical._resolve_infisical_settings
+        real_infisical_login = infisical._infisical_login
+        real_resolve_scope = infisical._resolve_infisical_scope
+        try:
+            infisical._resolve_infisical_settings = lambda: (
+                "https://app.infisical.com",
+                "client_id",
+                "client_secret",
+            )
+            infisical._infisical_login = lambda *_args, **_kwargs: "token123"
+            infisical._resolve_infisical_scope = lambda: ("project-id", "dev", "/")
+
+            def fake_urlopen_error(req, timeout=0):  # noqa: ANN001
+                url = getattr(req, "full_url", "")
+                raise HTTPError(url, 403, "Forbidden", hdrs=None, fp=None)
+
+            infisical.urlopen = fake_urlopen_error
+            self.assertFalse(infisical._check_environment_access("prod"))
+
+            def fake_urlopen_ok(req, timeout=0):  # noqa: ANN001
+                return _FakeResp()
+
+            infisical.urlopen = fake_urlopen_ok
+            self.assertTrue(infisical._check_environment_access("prod"))
+        finally:
+            infisical.urlopen = real_urlopen
+            infisical._resolve_infisical_settings = real_resolve_settings
+            infisical._infisical_login = real_infisical_login
+            infisical._resolve_infisical_scope = real_resolve_scope
+
+    def test_access_guard_denies_on_network_error_after_cache_expiry(self):
+        """Core access guard must not allow stale cached grant after TTL expiry."""
+        real_cache_path = access._cache_path
+        real_resolve_scope = access._resolve_infisical_scope
+        real_fetch_access = access._fetch_infisical_access
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                cache_path = Path(tmpdir) / "access-cache.json"
+                access._cache_path = lambda: cache_path
+                access._resolve_infisical_scope = lambda: (config.REQUIRED_INFISICAL_PROJECT_ID, "dev", "/")
+                access._fetch_infisical_access = lambda *_args, **_kwargs: (None, "network_error")
+                access._save_json(
+                    cache_path,
+                    {
+                        "checked_at": time.time() - 999999,
+                        "allowed": True,
+                        "reason": "",
+                        "project_id": config.REQUIRED_INFISICAL_PROJECT_ID,
+                    },
+                )
+                with self.assertRaises(SystemExit):
+                    access.ensure_access_or_exit("https://app.infisical.com", "id", "secret")
+        finally:
+            access._cache_path = real_cache_path
+            access._resolve_infisical_scope = real_resolve_scope
+            access._fetch_infisical_access = real_fetch_access
+
+    def test_admin_access_denies_on_network_error_after_cache_expiry(self):
+        """Admin access must fail closed after cache expiry when backend is down."""
+        admin_access = __import__("moovent_stack.admin.access", fromlist=[""])
+        real_fetch_status = admin_access.fetch_access_status
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                cache_path = Path(tmpdir) / "admin-access-cache.json"
+                workspace_path = Path(tmpdir) / "workspace"
+                workspace_path.mkdir(parents=True, exist_ok=True)
+
+                os.environ[admin_access.ACCESS_ENV_URL] = "https://example.com/access"
+                os.environ[admin_access.ACCESS_ENV_CACHE_PATH] = str(cache_path)
+
+                admin_access.save_access_cache(
+                    cache_path,
+                    {
+                        "access_granted": True,
+                        "checked_at": time.time() - 999999,
+                    },
+                )
+                admin_access.fetch_access_status = lambda *_args, **_kwargs: (None, "network_error", False)
+                self.assertFalse(admin_access.ensure_access_or_exit(workspace_path))
+        finally:
+            os.environ.pop(admin_access.ACCESS_ENV_URL, None)
+            os.environ.pop(admin_access.ACCESS_ENV_CACHE_PATH, None)
+            admin_access.fetch_access_status = real_fetch_status
 
 
 if __name__ == "__main__":
