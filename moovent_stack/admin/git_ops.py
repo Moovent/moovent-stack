@@ -339,12 +339,22 @@ def git_pull_latest(repo: Path) -> tuple[bool, str, str]:
 
 def git_discard_changes(repo: Path) -> tuple[bool, str]:
     """
-    Discard all uncommitted changes (git reset --hard HEAD).
+    Discard all uncommitted changes.
+
+    Includes:
+    - tracked changes: git reset --hard HEAD
+    - untracked files/dirs: git clean -fd
+
+    Note:
+    - We intentionally avoid `-x` so ignored files are preserved.
     Returns (success, message).
     """
     ok, out = git_cmd(repo, ["reset", "--hard", "HEAD"])
     if not ok:
         return False, out or "reset failed"
+    ok, out = git_cmd(repo, ["clean", "-fd"])
+    if not ok:
+        return False, out or "clean failed"
     return True, "changes discarded"
 
 

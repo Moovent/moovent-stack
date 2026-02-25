@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.9
+- **Fix (Git discard)**: `Discard & switch` now removes both tracked and untracked changes before checkout (`git reset --hard` + `git clean -fd`).
+- **Tests**: Add regression test for discard behavior with tracked + untracked changes.
+
 ## 0.5.8
 - **Security (Infisical)**: Fix environment access validation to fail closed on API/auth errors.
 - **Security (Access cache)**: Remove stale-cache allow fallback after TTL expiry; access checks now fail closed on backend/network errors.

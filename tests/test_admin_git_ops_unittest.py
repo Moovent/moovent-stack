@@ -17,7 +17,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from moovent_stack.admin.git_ops import collect_git_info, git_pull_latest, github_commit_url
+from moovent_stack.admin.git_ops import (
+    collect_git_info,
+    git_discard_changes,
+    git_pull_latest,
+    github_commit_url,
+)
 
 
 def _git(cwd: Path, *args: str) -> str:
@@ -92,6 +97,36 @@ class TestAdminGitOps(unittest.TestCase):
             # After update, should not be behind.
             info2 = collect_git_info(local, fetch=True)
             self.assertEqual(int(info2.get("behind") or 0), 0)
+
+    def test_git_discard_changes_removes_tracked_and_untracked(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo = Path(tmpdir) / "repo"
+            repo.mkdir(parents=True, exist_ok=True)
+            _git(repo, "init")
+            _git(repo, "config", "user.email", "test@example.com")
+            _git(repo, "config", "user.name", "Test")
+
+            tracked = repo / "tracked.txt"
+            tracked.write_text("v1\n", encoding="utf-8")
+            _git(repo, "add", "tracked.txt")
+            _git(repo, "commit", "-m", "init")
+
+            # Create dirty state: modify tracked + add untracked file/dir.
+            tracked.write_text("v2\n", encoding="utf-8")
+            untracked_file = repo / "temp.txt"
+            untracked_file.write_text("temp\n", encoding="utf-8")
+            untracked_dir = repo / "tmpdir"
+            untracked_dir.mkdir(parents=True, exist_ok=True)
+            (untracked_dir / "nested.txt").write_text("nested\n", encoding="utf-8")
+
+            ok, _msg = git_discard_changes(repo)
+            self.assertTrue(ok)
+
+            # Tracked file restored to committed content.
+            self.assertEqual(tracked.read_text(encoding="utf-8"), "v1\n")
+            # Untracked artifacts removed.
+            self.assertFalse(untracked_file.exists())
+            self.assertFalse(untracked_dir.exists())
 
 
 if __name__ == "__main__":
