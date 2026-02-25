@@ -758,9 +758,47 @@
       let toastCounter = 0;
       // Default toast auto-dismiss. Long enough to read logs/errors without rushing.
       const TOAST_AUTODISMISS_MS = 30 * 1000;
+      const MAX_VISIBLE_TOASTS = 3;
       const toastTimeouts = {};
+      const TOAST_PRIORITY = {
+        error: 3,
+        warning: 2,
+        caution: 2, // alias semantics requested by user
+        info: 1,
+        success: 1,
+      };
+
+      function getToastPriority(type) {
+        return TOAST_PRIORITY[type] || 1;
+      }
+
+      function enforceToastLimit(incomingType) {
+        if (!toastContainer) return true;
+        const visibleToasts = Array.from(toastContainer.querySelectorAll(".toast:not(.hiding)"));
+        if (visibleToasts.length < MAX_VISIBLE_TOASTS) return true;
+
+        const incomingPriority = getToastPriority(incomingType);
+        const sorted = [...visibleToasts].sort((a, b) => {
+          const pa = Number(a.dataset.priority || 1);
+          const pb = Number(b.dataset.priority || 1);
+          if (pa !== pb) return pa - pb; // evict lower-priority first
+          return Number(a.dataset.toastId || 0) - Number(b.dataset.toastId || 0); // then oldest
+        });
+        const candidate = sorted[0];
+        if (!candidate) return true;
+        const candidatePriority = Number(candidate.dataset.priority || 1);
+        const candidateId = Number(candidate.dataset.toastId || 0);
+        if (!candidateId) return true;
+
+        // If incoming is lower priority than all visible toasts, drop it.
+        if (incomingPriority < candidatePriority) return false;
+
+        dismissToast(candidateId, { immediate: true });
+        return true;
+      }
 
       function showToast(type, title, message, opts = {}) {
+        if (!enforceToastLimit(type)) return null;
         const id = ++toastCounter;
         const icons = {
           success: '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
@@ -774,6 +812,8 @@
         const toast = document.createElement("div");
         toast.className = "toast toast-" + type;
         toast.id = "toast-" + id;
+        toast.dataset.toastId = String(id);
+        toast.dataset.priority = String(getToastPriority(type));
         toast.innerHTML =
           icons[type] +
           '<div class="toast-content">' +
@@ -804,7 +844,7 @@
         return id;
       }
 
-      function dismissToast(id) {
+      function dismissToast(id, opts = {}) {
         // Cancel any pending auto-dismiss timer.
         try {
           if (toastTimeouts[id]) {
@@ -814,8 +854,12 @@
         } catch {}
         const toast = document.getElementById("toast-" + id);
         if (toast) {
-          toast.classList.add("hiding");
-          setTimeout(() => toast.remove(), 300);
+          if (opts && opts.immediate) {
+            toast.remove();
+          } else {
+            toast.classList.add("hiding");
+            setTimeout(() => toast.remove(), 300);
+          }
         }
         // Best-effort cleanup: if this toast belonged to a service alert, clear mapping.
         try {
@@ -2152,7 +2196,7 @@
                 const existingId = state.serviceAlertToasts[svc.name];
                 if (existingId) dismissToast(existingId);
                 const id = showToast("error", name + " has an issue", alertMessages[svc.alert.type] || "Something went wrong");
-                state.serviceAlertToasts[svc.name] = id;
+                if (id) state.serviceAlertToasts[svc.name] = id;
               }
               // Check for alert resolved
               if (!svc.alert && prev.alert) {

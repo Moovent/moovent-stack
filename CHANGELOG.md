@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.13 (unreleased)
+- **UX (toasts)**: Limit visible toast notifications to 3 and prioritize warning/error toasts when overflow occurs.
+
 ## 0.5.12
 - **Watchdog (auto-restart)**: Add a service watchdog that polls repo-specific config/dependency files and restarts affected services automatically after debounced changes.
 - **Watchdog (auto-reinstall)**: On lockfile/requirements changes, run dependency bootstrap (`ensure_node_deps` / `ensure_python_deps`) before restart.
