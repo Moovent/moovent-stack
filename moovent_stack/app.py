@@ -149,25 +149,23 @@ def main() -> int:
     # Import and run the admin dashboard directly
     log_info("app", f"Starting admin dashboard for workspace: {workspace_root}")
     
-    # Load workspace .env to get MOOVENT_INFISICAL_EXPORT_KEYS before fetching secrets.
-    # This allows the user to specify which additional keys to export from Infisical.
-    mqtt_env_path = workspace_root / "mqtt_dashboard_watch" / ".env"
-    if mqtt_env_path.exists():
-        from .admin.deps import read_dotenv
-        workspace_env = read_dotenv(mqtt_env_path)
-        # Only load MOOVENT_INFISICAL_EXPORT_KEYS (and similar config vars) to os.environ.
-        # Don't load secrets from .env — let Infisical provide those.
-        config_keys = [
-            "MOOVENT_INFISICAL_EXPORT_KEYS",
-            "INFISICAL_REQUIRED_KEYS",
-            # Enable "export all keys from Infisical" for local runner injection.
-            # We intentionally preload this from the repo `.env` because `_build_runner_env()`
-            # relies on the parent process environment.
-            "INFISICAL_EXPORT_ALL",
-        ]
-        for k in config_keys:
-            if k in workspace_env and not os.environ.get(k):
-                os.environ[k] = workspace_env[k]
+    # Load workspace .env files to get INFISICAL_EXPORT_ALL etc. before fetching secrets.
+    # Both mqtt_dashboard_watch and dashboard use Infisical; load config from whichever exists.
+    from .admin.deps import read_dotenv
+    config_keys = [
+        "MOOVENT_INFISICAL_EXPORT_KEYS",
+        "INFISICAL_REQUIRED_KEYS",
+        "INFISICAL_EXPORT_ALL",
+    ]
+    for env_path in [
+        workspace_root / "mqtt_dashboard_watch" / ".env",
+        workspace_root / "dashboard" / "server" / ".env",
+    ]:
+        if env_path.exists():
+            workspace_env = read_dotenv(env_path)
+            for k in config_keys:
+                if k in workspace_env and not os.environ.get(k):
+                    os.environ[k] = workspace_env[k]
     
     # Inject Infisical runtime env before starting
     for k, v in _build_runner_env().items():
