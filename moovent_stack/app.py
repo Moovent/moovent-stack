@@ -14,7 +14,7 @@ from .access import ensure_access_or_exit
 from .config import _setup_noninteractive, _setup_port
 from .infisical import _resolve_infisical_settings
 from .log import get_log_path, log_error, log_info, log_startup
-from .runner import _build_runner_env
+from .runner import _build_runner_env, _fetch_project_env_all
 from .setup.server import _run_setup_server
 from .storage import _load_config
 from .workspace import _resolve_runner_path, _validate_runner_path
@@ -167,10 +167,22 @@ def main() -> int:
                 if k in workspace_env and not os.environ.get(k):
                     os.environ[k] = workspace_env[k]
     
-    # Inject Infisical runtime env before starting
+    # Inject Infisical runtime env before starting (mqtt project — main scope).
     for k, v in _build_runner_env().items():
         if v and not os.environ.get(k):
             os.environ[k] = v
+
+    # Inject dashboard project secrets when the dashboard repo is installed.
+    # The dashboard uses a separate Infisical project from mqtt_dashboard_watch.
+    dashboard_env_path = workspace_root / "dashboard" / "server" / ".env"
+    if dashboard_env_path.exists():
+        from .admin.deps import read_dotenv as _read_dotenv
+        dashboard_env = _read_dotenv(dashboard_env_path)
+        dashboard_project_id = dashboard_env.get("INFISICAL_PROJECT_ID", "").strip()
+        if dashboard_project_id:
+            for k, v in _fetch_project_env_all(dashboard_project_id).items():
+                if v and not os.environ.get(k):
+                    os.environ[k] = v
 
     from .admin import main as admin_main
     return admin_main(workspace_root)

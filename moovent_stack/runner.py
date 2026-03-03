@@ -29,6 +29,32 @@ from .infisical import (
 from .log import log_info
 
 
+def _fetch_project_env_all(project_id: str) -> dict[str, str]:
+    """
+    Fetch all secrets from an arbitrary Infisical project and return them.
+
+    Purpose:
+    - Allow repos that belong to a different Infisical project than the main
+      mqtt project (e.g. dashboard) to have their secrets injected at runtime.
+    - Caller should merge results into os.environ before spawning child processes.
+    """
+    from .infisical import _resolve_infisical_settings, _infisical_login, _fetch_infisical_secrets
+
+    host, client_id, client_secret = _resolve_infisical_settings()
+    if not (host and client_id and client_secret):
+        return {}
+    token = _infisical_login(host, client_id, client_secret)
+    if not token:
+        log_info("runner", f"Infisical login failed for project {project_id[:8]}…")
+        return {}
+    _, environment, secret_path = _resolve_infisical_scope()
+    secrets = _fetch_infisical_secrets(
+        host, token, project_id, environment, secret_path, recursive=True
+    )
+    log_info("runner", f"Fetched {len(secrets)} secrets from project {project_id[:8]}…")
+    return secrets
+
+
 def _build_runner_env() -> dict[str, str]:
     """
     Build env overrides for run_local_stack.py.
