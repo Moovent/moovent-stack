@@ -1,138 +1,162 @@
 # Moovent Stack
 
-This repository contains the **Moovent local dev stack launcher** (`moovent-stack`).
+**Local dev stack launcher for Moovent developers.**
 
-Goals:
-- Install with **one command** via Homebrew
-- Run with **one command** (`moovent-stack`)
-- Guided setup (Infisical → GitHub → repo/branch selection)
-- **Access-controlled** via Infisical Universal Auth
+> New here? Read this top to bottom — it covers everything you need to go from zero to a running local stack.
 
-## Install (Homebrew)
+---
+
+## Before you install — what you need to request
+
+`moovent-stack` is access-controlled. You need two things before the install works:
+
+### 1. Infisical Machine Identity (ask your admin)
+
+Ask a team admin to create a **Machine Identity** for you in Infisical and send you:
+
+```
+INFISICAL_CLIENT_ID=<your-client-id>
+INFISICAL_CLIENT_SECRET=<your-client-secret>
+```
+
+Keep these private. Do not commit them, do not share them.
+
+### 2. GitHub access (ask your admin)
+
+Ask a team admin to add your GitHub account to the **Moovent GitHub organisation** and grant access to:
+- `mqtt_dashboard_watch`
+- `dashboard`
+
+---
+
+## Prerequisites
+
+Install these on your Mac before anything else:
 
 ```bash
+# Homebrew (if not already installed)
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/sh)"
+
+# Node.js via nvm (recommended)
+brew install nvm
+nvm install 20 && nvm use 20
+
+# Python 3.11+
+brew install python@3.11
+
+# GitHub CLI
+brew install gh
+```
+
+Verify:
+```bash
+node --version    # v20.x
+python3 --version # 3.11+
+gh --version
+```
+
+---
+
+## Install
+
+```bash
+brew tap moovent/tap
 brew install moovent/tap/moovent-stack
 ```
 
-## Run (recommended)
+Verify:
+```bash
+moovent-stack --version
+```
+
+---
+
+## First run
 
 ```bash
 moovent-stack
 ```
 
-If Infisical credentials or workspace are not configured, `moovent-stack` opens a setup page automatically.
+A setup page opens automatically in your browser at **`http://127.0.0.1:9000`**. Follow the three steps:
+
+| Step | What it does |
+|------|-------------|
+| **1 — Infisical** | Enter your Client ID + Secret. Credentials are verified against the Moovent project. |
+| **2 — Workspace + GitHub** | Choose where repos will be cloned (default: `~/Documents/Moovent-stack`). Authorise GitHub via OAuth. |
+| **3 — Repos + branches** | Select which repos to clone (`mqtt_dashboard_watch`, `dashboard`) and which branch. Click **Install Selected**. |
+
+After setup completes, the **Admin Dashboard** starts and your stack is running. All secrets are fetched from Infisical automatically — nothing sensitive is stored on disk.
+
+---
+
+## Daily usage
+
+```bash
+moovent-stack
+```
+
+That's it. Setup only runs once. On subsequent runs the stack starts directly.
+
+---
+
+## Local URLs
+
+| Service | URL |
+|---------|-----|
+| Admin Dashboard | http://127.0.0.1:9000 |
+| Dashboard UI | http://localhost:4000 |
+| Backend API | http://localhost:5001 |
+| MQTT UI | http://localhost:3000 |
+| MQTT Backend | http://localhost:8000 |
+
+> Use `127.0.0.1` (not `localhost`) for the Admin Dashboard — `localhost:9000` can conflict with AirPlay on macOS.
+
+---
+
+## Updating a service
+
+The Admin Dashboard shows an **Update available** banner when a repo has new commits.
+
+- If the repo is **clean**: click **Update** — it pulls and restarts automatically.
+- If the repo has **unsaved work**: inline **Commit** and **Discard** buttons appear so you can resolve your state first.
+
+---
+
+## Troubleshooting
+
+| Problem | Fix |
+|---------|-----|
+| `brew: formula not found` | Run `brew tap moovent/tap` first |
+| Infisical credentials rejected | Check your Client ID/Secret with admin; ensure Machine Identity has project access |
+| GitHub OAuth fails | Ensure your GitHub account is in the Moovent org |
+| Port already in use | Something else is on 9000 / 5001 / 4000 / 8000 — stop conflicting processes |
+| Stack starts but services crash | Check Admin Dashboard logs for the failing service |
+
+Full troubleshooting: [`help/TROUBLESHOOTING.md`](help/TROUBLESHOOTING.md)
+
+---
 
 ## Documentation
 
-- **Help index**: `help/README.md`
-- **Getting started**: `help/GETTING_STARTED.md`
-- **Configuration (env vars, config files)**: `help/CONFIGURATION.md`
-- **Troubleshooting**: `help/TROUBLESHOOTING.md`
-- **Security model**: `help/SECURITY.md`
-- **Development (contributors)**: `help/DEVELOPMENT.md`
+| File | Contents |
+|------|----------|
+| [`help/GETTING_STARTED.md`](help/GETTING_STARTED.md) | Full onboarding walkthrough |
+| [`help/CONFIGURATION.md`](help/CONFIGURATION.md) | All env vars and config options |
+| [`help/TROUBLESHOOTING.md`](help/TROUBLESHOOTING.md) | Common issues and fixes |
+| [`help/SECURITY.md`](help/SECURITY.md) | Secrets model and security notes |
+| [`help/DEVELOPMENT.md`](help/DEVELOPMENT.md) | For contributors to moovent-stack itself |
+| [`CHANGELOG.md`](CHANGELOG.md) | Release history |
 
-## What moovent-stack does
+---
 
-- **Step 1 (Infisical)**: validates your Machine Identity can access the required Moovent project.
-- **Step 2 (Workspace + GitHub)**: picks a workspace install path and authorizes GitHub.
-  - GitHub OAuth app credentials are typically fetched from Infisical (admin-provisioned).
-- **Step 3 (Repo + branch)**: clones selected repos/branches into your workspace and starts the stack by running `run_local_stack.py`.
+## For contributors
 
-## Local URLs (stable)
-
-Ports are owned by a single thing (no collisions):
-
-- **Moovent Stack UI (control)**: `http://127.0.0.1:7000` (macOS note: `localhost:7000` may be claimed by AirPlay/AirTunes)
-- **MQTT UI** (`mqtt-admin-dashboard`): `http://localhost:3000`
-- **Dashboard UI** (`dashboard` client): `http://localhost:4000`
-- **Backend API** (`mqtt_dashboard_watch`): `http://localhost:8000`
-
-Notes:
-- The Moovent Stack UI is the place to find the right link and stop the stack.
-
-## Secrets model (dev vs prod)
-
-### Local development (dev)
-
-- `moovent-stack` **does not write** `INFISICAL_CLIENT_ID` or `INFISICAL_CLIENT_SECRET` into any `.env` file.
-- It uses Infisical credentials in the launcher process to fetch runtime secrets.
-- It injects runtime secrets/config into child services, but does **not** pass `INFISICAL_CLIENT_SECRET` to child process environments.
-- It writes **only non-sensitive scope config** (host/project/environment/path) to:
-  - `<workspace>/mqtt_dashboard_watch/.env`
-
-### Production (Render)
-
-- Provide `INFISICAL_CLIENT_ID` and `INFISICAL_CLIENT_SECRET` as **Render environment variables**.
-
-## Run (manual / non-interactive)
-
-You can run without the setup UI by providing required values via environment variables.
-See `help/CONFIGURATION.md` for the full reference.
+Run locally (no Homebrew install needed):
 
 ```bash
-export INFISICAL_CLIENT_ID="YOUR_CLIENT_ID"
-export INFISICAL_CLIENT_SECRET="YOUR_CLIENT_SECRET"
-export INFISICAL_HOST="https://eu.infisical.com"   # optional override (default)
-export INFISICAL_ENVIRONMENT="dev"                 # default: dev
-export INFISICAL_SECRET_PATH="/"                   # default: /
-
-# Workspace path (contains run_local_stack.py and repo folders)
-export MOOVENT_WORKSPACE_ROOT="$HOME/Documents/Moovent-stack"
-
-# Optional: disable setup UI and fail fast if anything is missing
-export MOOVENT_SETUP_NONINTERACTIVE=1
-
-moovent-stack
-```
-
-## Local-only mode (default)
-
-The CLI launches the local stack by running `run_local_stack.py` from your workspace.
-
-Workspace requirements:
-- `run_local_stack.py` at the workspace root
-- `mqtt_dashboard_watch/` repo folder (only if selected in setup)
-- `dashboard/` repo folder (only if selected in setup)
-
-Runtime env behavior:
-- `moovent-stack` fetches required runtime keys from Infisical and injects those into child services.
-- `INFISICAL_CLIENT_SECRET` is kept in the launcher process and is not propagated to child process env.
-- `mqtt_dashboard_watch/.env` stays non-sensitive (no `INFISICAL_CLIENT_ID/SECRET` on disk).
-
-## Access control (Infisical Universal Auth)
-
-On every run, the CLI authenticates using **Infisical Universal Auth** (cached with TTL).
-If credentials are valid **and** have access to the required Moovent project, access is allowed.
-
-Env vars (summary — full reference in `help/CONFIGURATION.md`):
-
-```bash
-# Required:
-INFISICAL_CLIENT_ID=...
-INFISICAL_CLIENT_SECRET=...
-
-# Optional:
-INFISICAL_HOST=...                # default: https://eu.infisical.com
-INFISICAL_ENVIRONMENT=dev         # default: dev
-INFISICAL_SECRET_PATH=/           # default: /
-
-# Optional (default: https://eu.infisical.com, US: https://app.infisical.com):
-MOOVENT_ACCESS_TTL_S=86400
-MOOVENT_ACCESS_CACHE_PATH=~/.moovent_stack_access.json
-MOOVENT_ACCESS_SELF_CLEAN=1
-# If set, disable setup page and fail fast when missing config:
-MOOVENT_SETUP_NONINTERACTIVE=1
-# Optional: override runner path directly
-MOOVENT_RUNNER_PATH=/full/path/to/run_local_stack.py
-# Optional: provide workspace root instead
-MOOVENT_WORKSPACE_ROOT=/Users/you/Projects/moovent
-```
-
-## Development
-
-Run locally:
-
-```bash
+git clone https://github.com/Moovent/moovent-stack.git
+cd moovent-stack
 python3 -m moovent_stack
 ```
 
+See [`help/DEVELOPMENT.md`](help/DEVELOPMENT.md) for the full contributor guide.
