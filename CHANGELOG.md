@@ -5,6 +5,7 @@
 - **Fix (Update blocked)**: When a service is behind and has uncommitted changes, show inline **Commit** and **Discard** buttons so the user can resolve dirty state through the dashboard without using the terminal.
 - **Infisical (dashboard)**: Load `dashboard/server/.env` for INFISICAL_EXPORT_ALL and related config when dashboard repo exists, so dashboard receives Infisical-injected secrets like mqtt_dashboard_watch.
 - **Fix (dashboard secrets)**: Fetch secrets from the dashboard Infisical project (`16674d9d-…`) separately from the mqtt project. Previously only the mqtt project was fetched, so dashboard secrets (DATABASE, SECRET, etc.) were never injected and the server crashed on startup.
+- **Fix (port bleed)**: Dashboard Infisical project exports `PORT=5001`; this was bleeding into `mqtt_proc_env` via `os.environ`, causing the mqtt backend to bind 5001 instead of 8000. Port assignments for mqtt (8000) and dashboard-server are now always forced explicitly.
 
 ## 0.5.12
 - **Watchdog (auto-restart)**: Add a service watchdog that polls repo-specific config/dependency files and restarts affected services automatically after debounced changes.

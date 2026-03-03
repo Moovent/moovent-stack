@@ -220,8 +220,11 @@ def main(workspace: Path | None = None) -> int:
     manager = StackManager(log_store, quiet=True)
 
     # Ensure ports align with dashboard client proxy.
+    # Always force the mqtt backend to 8000 and dashboard server to server_port —
+    # regardless of any PORT value injected from Infisical (dashboard project exports
+    # PORT=5001 which must not bleed into the mqtt process).
     mqtt_proc_env = dict(os.environ)
-    mqtt_proc_env.setdefault("PORT", "8000")
+    mqtt_proc_env["PORT"] = "8000"
     # Keep mqtt backend usable even if MQTT broker is unreachable.
     mqtt_proc_env["ALLOW_START_WITHOUT_MQTT"] = "true"
 
