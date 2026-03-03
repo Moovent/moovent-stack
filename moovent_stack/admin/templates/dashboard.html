@@ -1629,7 +1629,17 @@
                                 (upstreamSubject ? (' — ' + escapeHtml(upstreamSubject)) : '') +
                               '</p>'
                             ) : '') +
-                            (hasPendingChanges ? '<p class="mt-1 text-[11px] text-amber-700">Commit/stash your changes before updating.</p>' : '') +
+                            (hasPendingChanges ? (
+                              '<p class="mt-1 text-[11px] text-amber-700">Commit or discard your changes before updating.</p>' +
+                              '<div class="mt-2 flex gap-2">' +
+                                '<button data-git-action="commit-for-update" data-service="' + svc.name + '" class="py-1 px-2 text-[11px] font-medium rounded bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-1">' +
+                                  '<i data-lucide="git-commit" class="w-3 h-3"></i> Commit' +
+                                '</button>' +
+                                '<button data-git-action="discard-for-update" data-service="' + svc.name + '" class="py-1 px-2 text-[11px] font-medium rounded bg-red-100 text-red-700 hover:bg-red-200 flex items-center gap-1">' +
+                                  '<i data-lucide="trash-2" class="w-3 h-3"></i> Discard' +
+                                '</button>' +
+                              '</div>'
+                            ) : '') +
                           '</div>' +
                           '<button data-git-action="pull" data-service="' + svc.name + '" ' + (canUpdateLatest ? '' : 'disabled') + ' class="shrink-0 py-1.5 px-2.5 text-[11px] font-medium rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5">' +
                             '<i data-lucide="arrow-down-circle" class="w-3.5 h-3.5"></i> Update' +
@@ -1817,6 +1827,59 @@
           renderServices(false);
         } catch (err) {
           showToast("error", "Something went wrong", "Could not push to GitHub");
+          renderServices(false);
+        }
+      }
+
+      /** Commit all changes with default message, then refresh so Update becomes enabled. */
+      async function commitForUpdate(name) {
+        if (!name) return;
+        const msg = "WIP before update";
+        showToast("info", "Committing...", "Staging and committing changes");
+        try {
+          const res = await fetch(`/api/git/${encodeURIComponent(name)}/commit`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message: msg }),
+          });
+          const data = await res.json();
+          if (!data.ok) {
+            showToast("error", "Commit failed", data.error || "Could not commit");
+            renderServices(false);
+            return;
+          }
+          showToast("success", "Changes committed", "You can now click Update");
+          await refreshGit(true);
+          await refreshServices();
+          renderServices(false);
+        } catch (err) {
+          showToast("error", "Something went wrong", err.message || "Could not commit");
+          renderServices(false);
+        }
+      }
+
+      /** Discard all uncommitted changes, then refresh so Update becomes enabled. */
+      async function discardForUpdate(name) {
+        if (!name) return;
+        showToast("info", "Discarding...", "Removing uncommitted changes");
+        try {
+          const res = await fetch(`/api/git/${encodeURIComponent(name)}/discard`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          });
+          const data = await res.json();
+          if (!data.ok) {
+            showToast("error", "Discard failed", data.error || "Could not discard");
+            renderServices(false);
+            return;
+          }
+          showToast("success", "Changes discarded", "You can now click Update");
+          await refreshGit(true);
+          await refreshServices();
+          renderServices(false);
+        } catch (err) {
+          showToast("error", "Something went wrong", err.message || "Could not discard");
           renderServices(false);
         }
       }
@@ -2319,6 +2382,10 @@
             fetchGitInfo(name, true).then(() => renderServices(false));
           } else if (action === "push") {
             pushToGitHub(name);
+          } else if (action === "commit-for-update") {
+            commitForUpdate(name);
+          } else if (action === "discard-for-update") {
+            discardForUpdate(name);
           }
           return;
         }

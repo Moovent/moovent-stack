@@ -2,6 +2,7 @@
 
 ## 0.5.13 (unreleased)
 - **UX (toasts)**: Limit visible toast notifications to 3 and prioritize warning/error toasts when overflow occurs.
+- **Fix (Update blocked)**: When a service is behind and has uncommitted changes, show inline **Commit** and **Discard** buttons so the user can resolve dirty state through the dashboard without using the terminal.
 
 ## 0.5.12
 - **Watchdog (auto-restart)**: Add a service watchdog that polls repo-specific config/dependency files and restarts affected services automatically after debounced changes.

@@ -96,7 +96,7 @@ Port behavior on recent versions:
 Common causes:
 
 - **Dirty repo**: you have local changes (uncommitted files).
-  - Fix: commit/stash/discard changes, then click **Update now** again.
+  - Fix: click **Commit** or **Discard** in the update section (shown when behind + dirty), then click **Update**.
 - **Detached HEAD**: the repo is not on a branch (checked out to a commit).
   - Fix: checkout a branch (`git checkout main`) and retry.
 - **Upstream missing**: `origin/<branch>` doesn't exist (non-standard branch or remote).
