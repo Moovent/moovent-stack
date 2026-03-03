@@ -30,12 +30,16 @@ from ..github import (
     _resolve_github_token,
 )
 from ..infisical import (
+    _check_project_access,
     _ensure_github_oauth_from_infisical,
     _fetch_infisical_access,
     _fetch_github_oauth_from_infisical,
     _fetch_scope_display_names,
+    _infisical_login,
+    _normalize_infisical_secret_path,
     _resolve_infisical_settings,
 )
+from ..config import INFISICAL_PROJECT_IDS
 from ..log import get_log_path, log_error, log_info
 from ..storage import _load_config, _save_config
 from ..workspace import (
@@ -504,13 +508,32 @@ def _run_setup_server() -> bool:
                     host, client_id, client_secret
                 )
 
+                # Probe each known project to determine which this identity can access.
+                # We reuse a fresh token here so the result is authoritative.
+                _probe_token = _infisical_login(host, client_id, client_secret)
+                accessible_ids: list[str] = []
+                if _probe_token:
+                    for _proj_name, _proj_id in INFISICAL_PROJECT_IDS.items():
+                        _ok, _ = _check_project_access(
+                            host, _probe_token, _proj_id,
+                            DEFAULT_INFISICAL_ENVIRONMENT, DEFAULT_INFISICAL_SECRET_PATH,
+                        )
+                        if _ok:
+                            accessible_ids.append(_proj_id)
+                # If probe failed entirely, fall back to all known (permissive).
+                if not accessible_ids:
+                    accessible_ids = list(INFISICAL_PROJECT_IDS.values())
+                log_info("setup", f"Accessible projects: {accessible_ids}")
+
                 config_data = {
                     "infisical_client_id": client_id,
                     "infisical_client_secret": client_secret,
                     "infisical_host": host,
                     # Persist enforced scope so other steps can reuse it.
                     "infisical_org_id": REQUIRED_INFISICAL_ORG_ID,
-                    "infisical_project_id": REQUIRED_INFISICAL_PROJECT_ID,
+                    "infisical_project_id": accessible_ids[0] if accessible_ids else REQUIRED_INFISICAL_PROJECT_ID,
+                    # All projects accessible to this identity (subset of INFISICAL_PROJECT_IDS).
+                    "infisical_accessible_project_ids": accessible_ids,
                     # Store display names for UI
                     "infisical_org_name": "Moovent",
                     "infisical_project_name": project_name or "",

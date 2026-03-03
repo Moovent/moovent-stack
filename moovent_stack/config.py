@@ -55,7 +55,15 @@ DEFAULT_GITHUB_SCOPES = "repo read:org"
 
 # Required Infisical scope (org/project) enforcement
 REQUIRED_INFISICAL_ORG_ID = "20256abe-9337-498a-af56-d08d6e762d29"
+# Legacy single-project constant — kept for backward-compat references.
 REQUIRED_INFISICAL_PROJECT_ID = "b33db90d-cc5b-464e-b58c-a09e7328e83d"
+# All known Moovent Infisical projects.
+# Access is granted when the identity has access to AT LEAST ONE of these.
+# Identities may have access to only mqtt-dashboard, only dashboard, or both.
+INFISICAL_PROJECT_IDS: dict[str, str] = {
+    "mqtt-dashboard": "b33db90d-cc5b-464e-b58c-a09e7328e83d",
+    "dashboard": "16674d9d-a72e-4849-81c9-0d56f9e6d5d1",
+}
 DEFAULT_INFISICAL_ENVIRONMENT = "dev"
 DEFAULT_INFISICAL_SECRET_PATH = "/"
 

@@ -23,6 +23,7 @@ from .config import (
     INFISICAL_ENV_HOST,
     INFISICAL_ENV_PROJECT_ID,
     INFISICAL_ENV_SECRET_PATH,
+    INFISICAL_PROJECT_IDS,
     REQUIRED_INFISICAL_PROJECT_ID,
     _env_bool,
 )
@@ -86,21 +87,17 @@ def _normalize_infisical_secret_path(path: Optional[str]) -> str:
 
 def _resolve_infisical_scope() -> tuple[str, str, str]:
     """
-    Resolve the Infisical scope used for access validation.
+    Resolve the Infisical scope used for secret fetching.
 
-    We intentionally enforce a single org + project for now.
-
-    Returns:
-    - project_id (required project UUID)
-    - environment (default: dev)
-    - secret_path (default: /)
+    Returns the first accessible project ID (from saved config), environment, and path.
+    Callers that need to iterate all accessible projects should use
+    `_resolve_accessible_project_ids()` instead.
     """
-    # Project is fixed (single-project org).
-    project_id = REQUIRED_INFISICAL_PROJECT_ID
-
-    # Environment/path can be overridden to match your Infisical configuration.
-    # This uses the same env var names as mqtt_dashboard_watch.
     cfg = _load_config()
+    # Prefer the first saved accessible project; fall back to the legacy single-project constant.
+    accessible = cfg.get("infisical_accessible_project_ids") or []
+    project_id = accessible[0] if accessible else REQUIRED_INFISICAL_PROJECT_ID
+
     environment = (
         os.environ.get(INFISICAL_ENV_ENVIRONMENT)
         or str(cfg.get("infisical_environment") or "")
@@ -114,19 +111,33 @@ def _resolve_infisical_scope() -> tuple[str, str, str]:
     return project_id, environment, secret_path
 
 
+def _resolve_accessible_project_ids() -> list[str]:
+    """
+    Return the list of Infisical project IDs the current identity has access to.
+
+    Falls back to all known project IDs when not yet determined (first run).
+    """
+    cfg = _load_config()
+    saved = cfg.get("infisical_accessible_project_ids")
+    if saved and isinstance(saved, list) and saved:
+        return [str(p) for p in saved]
+    # Not yet determined — return all known projects so callers try each.
+    return list(INFISICAL_PROJECT_IDS.values())
+
+
 def _required_project_id_mismatch_reason() -> Optional[str]:
     """
-    Enforce the required project ID if the user explicitly configured one.
+    Enforce that a user-configured project ID is one of the known Moovent projects.
 
-    This avoids a footgun where a user points the stack at the wrong Infisical project
-    and still passes Step 1.
+    This avoids a footgun where a user points the stack at an unrelated Infisical
+    project and still passes Step 1.
     """
     cfg = _load_config()
     configured = (
         os.environ.get(INFISICAL_ENV_PROJECT_ID)
         or str(cfg.get("infisical_project_id") or "")
     ).strip()
-    if configured and configured != REQUIRED_INFISICAL_PROJECT_ID:
+    if configured and configured not in INFISICAL_PROJECT_IDS.values():
         return "project_id_mismatch"
     return None
 
@@ -569,40 +580,14 @@ def _fetch_all_secrets_for_environment(environment: str) -> dict[str, str]:
     return secrets
 
 
-def _fetch_infisical_access(
-    host: str, client_id: str, client_secret: str
-) -> tuple[Optional[bool], str]:
+def _check_project_access(
+    host: str, token: str, project_id: str, environment: str, secret_path: str
+) -> tuple[bool, str]:
     """
-    Validate Infisical Universal Auth credentials.
+    Check whether the token has access to a single Infisical project.
 
-    Returns:
-    - allowed: True/False if request succeeded
-    - allowed: None if request failed (network/server)
-    - reason: failure reason for logging
+    Returns (ok, reason). reason is empty string on success.
     """
-    log_info("infisical", f"Validating access: host={host} client_id={client_id[:8]}...")
-
-    project_id, environment, secret_path = _resolve_infisical_scope()
-    log_debug(
-        "infisical",
-        f"Scope: project={project_id} env={environment} path={secret_path}",
-    )
-
-    mismatch = _required_project_id_mismatch_reason()
-    if mismatch:
-        log_error("infisical", f"Access denied: {mismatch}")
-        return False, mismatch
-
-    token = _infisical_login(host, client_id, client_secret)
-    if not token:
-        log_error(
-            "infisical",
-            "Access denied: auth_failed (could not obtain access token). "
-            "Check that Client ID and Secret are correct and the Machine Identity exists.",
-        )
-        return False, "auth_failed"
-
-    # Enforce project access by listing secrets for the required project.
     from urllib.parse import urlencode
 
     query = urlencode(
@@ -622,11 +607,9 @@ def _fetch_infisical_access(
     secrets_req.add_header("User-Agent", _DEFAULT_USER_AGENT)
 
     log_debug("infisical", f"GET {secrets_url}")
-
     try:
         with urlopen(secrets_req, timeout=ACCESS_REQUEST_TIMEOUT_S) as resp:
-            _ = resp.read()  # intentionally ignored
-            log_info("infisical", "Access validated successfully")
+            _ = resp.read()
             return True, ""
     except HTTPError as err:
         try:
@@ -634,17 +617,88 @@ def _fetch_infisical_access(
         except Exception:
             body = ""
         reason = f"http_{err.code}"
-        log_error(
-            "infisical",
-            f"Access denied: {reason} ({err.reason}) body={body[:300]}",
-        )
-        if 400 <= err.code < 500:
-            return False, reason
-        return None, reason
+        log_debug("infisical", f"Project {project_id[:8]}… denied: {reason} body={body[:200]}")
+        return False, reason
     except Exception as exc:
         reason = f"request_failed:{exc.__class__.__name__}"
-        log_error("infisical", f"Access check failed: {reason} ({exc})")
-        return None, reason
+        log_debug("infisical", f"Project {project_id[:8]}… error: {reason}")
+        return False, reason
+
+
+def _fetch_infisical_access(
+    host: str, client_id: str, client_secret: str
+) -> tuple[Optional[bool], str]:
+    """
+    Validate Infisical Universal Auth credentials against all known Moovent projects.
+
+    Access is granted when the identity can reach AT LEAST ONE project.
+    This supports identities that only have access to mqtt-dashboard, only dashboard,
+    or both.
+
+    Returns:
+    - (True, "")              — at least one project accessible
+    - (False, reason)         — login failed or no project accessible (4xx)
+    - (None, reason)          — network/server error prevented any check
+    """
+    log_info("infisical", f"Validating access: host={host} client_id={client_id[:8]}...")
+
+    mismatch = _required_project_id_mismatch_reason()
+    if mismatch:
+        log_error("infisical", f"Access denied: {mismatch}")
+        return False, mismatch
+
+    token = _infisical_login(host, client_id, client_secret)
+    if not token:
+        log_error(
+            "infisical",
+            "Access denied: auth_failed (could not obtain access token). "
+            "Check that Client ID and Secret are correct and the Machine Identity exists.",
+        )
+        return False, "auth_failed"
+
+    cfg = _load_config()
+    environment = (
+        os.environ.get(INFISICAL_ENV_ENVIRONMENT)
+        or str(cfg.get("infisical_environment") or "")
+        or DEFAULT_INFISICAL_ENVIRONMENT
+    ).strip() or DEFAULT_INFISICAL_ENVIRONMENT
+    secret_path = _normalize_infisical_secret_path(
+        os.environ.get(INFISICAL_ENV_SECRET_PATH)
+        or str(cfg.get("infisical_secret_path") or "")
+        or DEFAULT_INFISICAL_SECRET_PATH
+    )
+
+    accessible: list[str] = []
+    last_reason = "http_403"
+    network_errors = 0
+
+    for name, project_id in INFISICAL_PROJECT_IDS.items():
+        log_debug("infisical", f"Checking project {name} ({project_id[:8]}…)")
+        ok, reason = _check_project_access(host, token, project_id, environment, secret_path)
+        if ok:
+            accessible.append(project_id)
+            log_info("infisical", f"Access granted: project={name}")
+        elif reason.startswith("request_failed"):
+            network_errors += 1
+            last_reason = reason
+        else:
+            last_reason = reason
+
+    if accessible:
+        log_info("infisical", f"Access validated: {len(accessible)}/{len(INFISICAL_PROJECT_IDS)} projects accessible")
+        return True, ""
+
+    # All projects failed — distinguish network errors from auth errors.
+    if network_errors == len(INFISICAL_PROJECT_IDS):
+        log_error("infisical", f"Access check failed: all projects unreachable ({last_reason})")
+        return None, last_reason
+
+    log_error(
+        "infisical",
+        f"Access denied: no accessible project found across {list(INFISICAL_PROJECT_IDS.keys())}. "
+        f"Last reason: {last_reason}. Ensure the Machine Identity is assigned to at least one project.",
+    )
+    return False, last_reason
 
 
 def _debug_enabled() -> bool:

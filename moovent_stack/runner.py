@@ -23,6 +23,7 @@ from .config import (
 from .infisical import (
     _fetch_infisical_env_all,
     _fetch_infisical_env_exports,
+    _resolve_accessible_project_ids,
     _resolve_infisical_scope,
     _resolve_infisical_settings,
 )
@@ -31,14 +32,17 @@ from .log import log_info
 
 def _fetch_project_env_all(project_id: str) -> dict[str, str]:
     """
-    Fetch all secrets from an arbitrary Infisical project and return them.
+    Fetch all secrets from an Infisical project and return them.
 
-    Purpose:
-    - Allow repos that belong to a different Infisical project than the main
-      mqtt project (e.g. dashboard) to have their secrets injected at runtime.
-    - Caller should merge results into os.environ before spawning child processes.
+    Only fetches if the project is in the identity's accessible project list.
+    Caller should merge results into os.environ before spawning child processes.
     """
     from .infisical import _resolve_infisical_settings, _infisical_login, _fetch_infisical_secrets
+
+    accessible = _resolve_accessible_project_ids()
+    if project_id not in accessible:
+        log_info("runner", f"Skipping project {project_id[:8]}… (not accessible to this identity)")
+        return {}
 
     host, client_id, client_secret = _resolve_infisical_settings()
     if not (host and client_id and client_secret):
@@ -53,6 +57,20 @@ def _fetch_project_env_all(project_id: str) -> dict[str, str]:
     )
     log_info("runner", f"Fetched {len(secrets)} secrets from project {project_id[:8]}…")
     return secrets
+
+
+def _fetch_all_accessible_project_envs() -> dict[str, str]:
+    """
+    Fetch secrets from ALL projects accessible to this identity and merge them.
+
+    Used at startup to inject runtime env for whichever repos are installed.
+    Projects the identity cannot access are silently skipped.
+    """
+    result: dict[str, str] = {}
+    for project_id in _resolve_accessible_project_ids():
+        for k, v in _fetch_project_env_all(project_id).items():
+            result.setdefault(k, v)
+    return result
 
 
 def _build_runner_env() -> dict[str, str]:

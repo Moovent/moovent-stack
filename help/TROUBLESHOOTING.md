@@ -164,10 +164,20 @@ You may see messages like:
 - `Infisical access check failed. Reason: http_403`
 - `project_id_mismatch`
 
+### http_403 — "correct access" but still denied
+
+**http_403** means the Machine Identity (Client ID + Secret) authenticates successfully but Infisical returns 403 when fetching secrets for the Moovent project. Common causes:
+
+1. **Machine Identity not added to the project** — In Infisical, the identity must be explicitly granted access to the Moovent project (not just the org).
+2. **Wrong environment** — The identity may have access to `dev` but not `prod`, or vice versa.
+3. **Wrong tenant** — Moovent uses EU. If you use US credentials against EU (or vice versa), access fails.
+4. **Identity revoked or expired** — Check in Infisical that the identity is active.
+
 Fix:
+
 - Confirm your Machine Identity is granted access to the Moovent project
 - Ensure you're using the correct Infisical tenant:
-  - EU: `https://eu.infisical.com`
+  - EU: `https://eu.infisical.com` (Moovent default)
   - US: `https://app.infisical.com`
 
 Override host if needed:
@@ -175,6 +185,28 @@ Override host if needed:
 ```bash
 export INFISICAL_HOST="https://eu.infisical.com"
 ```
+
+For debug output (API responses, errors):
+
+```bash
+export MOOVENT_INFISICAL_DEBUG=1
+moovent-stack
+```
+
+## Log file not created
+
+If the error says "See detailed log: ~/.moovent_stack.log" but the file doesn't exist:
+
+1. **Check terminal** — Look for `[log-error] Cannot write to ...` — the primary path may not be writable (e.g. sandboxed IDE).
+2. **Check fallback** — Logs may be in `/tmp/moovent_stack_<username>.log` when the home directory is not writable.
+3. **Override path** — Use a writable location:
+
+```bash
+export MOOVENT_LOG_PATH="/tmp/moovent_stack.log"
+moovent-stack
+```
+
+4. **Run from a regular terminal** — If launched from Cursor/VS Code, the process may inherit a sandbox that blocks writes to `~`. Run `moovent-stack` from Terminal.app or iTerm.
 
 ## Infisical unreachable
 
@@ -193,6 +225,8 @@ rm ~/.moovent_stack_config.json
 rm ~/.moovent_stack_access.json
 rm ~/.moovent_stack.log
 rm ~/.moovent_stack_admin.log
+# If logs were written to fallback (home not writable):
+rm /tmp/moovent_stack_$(whoami).log 2>/dev/null
 ```
 
 Then re-run:

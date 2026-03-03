@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.5.13 (unreleased)
+## 0.5.14 (unreleased)
+- **Fix (Infisical access)**: Access is now granted when the Machine Identity has access to **at least one** Moovent project (`mqtt-dashboard` or `dashboard`). Previously a single hardcoded project was checked and the whole login failed if the identity only had access to the other project. Accessible project IDs are saved to config and used for all subsequent secret fetching — inaccessible projects are silently skipped.
+
+## 0.5.13
+- **Fix (logging)**: When `~/.moovent_stack.log` is not writable (e.g. sandboxed IDE), fall back to `/tmp/moovent_stack_<user>.log` and surface the actual path in error messages.
 - **UX (toasts)**: Limit visible toast notifications to 3 and prioritize warning/error toasts when overflow occurs.
 - **Fix (Update blocked)**: When a service is behind and has uncommitted changes, show inline **Commit** and **Discard** buttons so the user can resolve dirty state through the dashboard without using the terminal.
 - **Infisical (dashboard)**: Load `dashboard/server/.env` for INFISICAL_EXPORT_ALL and related config when dashboard repo exists, so dashboard receives Infisical-injected secrets like mqtt_dashboard_watch.

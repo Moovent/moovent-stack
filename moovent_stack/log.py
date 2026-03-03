@@ -73,19 +73,43 @@ def _write_log(level: str, tag: str, message: str) -> None:
     Append a log line to the log file.
 
     Format: TIMESTAMP LEVEL [tag] message
+
+    Fallback: If primary path (e.g. ~/.moovent_stack.log) is not writable
+    (sandbox, permissions), try /tmp. Ensures logs exist for support diagnostics.
     """
     path = get_log_path()
     ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     line = f"{ts} {level.upper():5} [{tag}] {message}\n"
 
-    with _lock:
-        _rotate_if_needed(path)
-        try:
-            with path.open("a", encoding="utf-8") as f:
-                f.write(line)
-        except Exception:
-            # If we can't write to the log file, print to stderr as fallback.
-            print(f"[log-error] {line.strip()}", file=sys.stderr)
+    def _try_write(p: Path) -> bool:
+        with _lock:
+            _rotate_if_needed(p)
+            try:
+                with p.open("a", encoding="utf-8") as f:
+                    f.write(line)
+                return True
+            except Exception as exc:
+                print(
+                    f"[log-error] Cannot write to {p}: {exc}. "
+                    f"Log line: {line.strip()}",
+                    file=sys.stderr,
+                )
+                return False
+
+    if _try_write(path):
+        return
+    # Fallback: /tmp when home dir is not writable (e.g. sandboxed IDE)
+    fallback = Path("/tmp") / f"moovent_stack_{os.environ.get('USER', 'unknown')}.log"
+    if fallback != path and _try_write(fallback):
+        global _log_path
+        _log_path = fallback
+        print(
+            f"[log] Using fallback log: {fallback} (primary {path} not writable)",
+            file=sys.stderr,
+        )
+        return
+    # Last resort: stderr only
+    print(f"[log] {line.strip()}", file=sys.stderr)
 
 
 def log_debug(tag: str, message: str) -> None:

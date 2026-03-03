@@ -194,6 +194,7 @@ class TestAccessGuard(unittest.TestCase):
         self.assertTrue(config._setup_noninteractive())
 
     def test_fetch_infisical_access_requires_project_access(self):
+        # Setting a known project ID should not trigger mismatch.
         os.environ[config.INFISICAL_ENV_PROJECT_ID] = (
             config.REQUIRED_INFISICAL_PROJECT_ID
         )
@@ -231,8 +232,10 @@ class TestAccessGuard(unittest.TestCase):
             )
             self.assertTrue(allowed)
             self.assertEqual(reason, "")
+            # One login call; one secrets call per known project (may be >1).
             self.assertEqual(calls["login"], 1)
-            self.assertEqual(calls["secrets"], 1)
+            self.assertGreaterEqual(calls["secrets"], 1)
+            self.assertEqual(calls["secrets"], len(config.INFISICAL_PROJECT_IDS))
         finally:
             infisical.urlopen = real_urlopen
             os.environ.pop(config.INFISICAL_ENV_PROJECT_ID, None)
